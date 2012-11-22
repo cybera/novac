@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -e
+
+print_summaries() {
+  for file in $_NOVAC_ROOT/libexec/novac-*; do
+    if [ ! -h $file ]; then
+      local summary=$(grep "^# Summary:" $file | cut -d ' ' -f3-)
+      if [ -n "$summary" ]; then
+        local name=$(basename $file | sed 's/novac-sh-//' | sed 's/novac-//')
+        echo "$name" | awk '{ printf "   %-20s   ", $1}'
+        echo -n $summary
+        echo
+      fi
+    fi
+  done
+}
+
+print_help() {
+  local usage=$(grep "^# Usage:" $1 | cut -d ' ' -f2-)
+  local halp="$(awk '/^# Help:/,/^[^#]/' $1 | grep "^#" | sed "s/^# Help: //" | sed "s/^# //" | sed "s/^#//")"
+
+  if [ -n "$usage" ]; then
+    echo $usage
+    [ -n "$halp" ] && echo && echo "$halp"
+  else
+    echo "Sorry, this command isn't documented yet."
+  fi
+}
+
+# Provide novac completions
+if [ "$1" = "--complete" ]; then
+  exec "novac-commands"
+  exit
+fi
+
+case "$1" in
+"") echo "Usage: novac <command> [<args>]
+
+Some useful novac commands are:
+$(print_summaries)
+
+See 'novac help <command>' for information on a specific command."
+;;
+*)
+  command_path="$(command -v "$_NOVAC_ROOT/libexec/novac-$1" || true)"
+  if [ -z "$command_path" ]; then
+    command_path="$(command -v "$_NOVAC_ROOT/libexec/novac-sh-$1" || true)"
+  fi;
+
+  if [ -n "$command_path" ]; then
+    print_help "$command_path"
+  else
+    echo "novac: no such command \`$1'"
+  fi
+esac

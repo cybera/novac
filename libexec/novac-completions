@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -e
+
+COMMAND="$1"
+if [ -z "$COMMAND" ]; then
+  echo "usage: novac completions COMMAND [arg1 arg2...]" >&2
+  exit 1
+fi
+
+# Support sh- commands too
+COMMAND_PATH="$(command -v "novac-$COMMAND" || true)"
+if [ ! -x "$COMMAND_PATH" ]; then
+	COMMAND_PATH="$(command -v "novac-sh-$COMMAND")"
+fi
+
+if grep -i "^# provide novac completions" "$COMMAND_PATH" >/dev/null; then
+  shift
+  exec "$COMMAND_PATH" --complete "$@"
+fi
