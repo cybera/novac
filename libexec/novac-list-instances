@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+require 'rubygems'
+
+# List of required libraries
+required_libs = ['mysql', 'terminal-table']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Probably better done with the ini library
+username = ''
+password = ''
+if File.exists?('/root/.my.cnf')
+  File.open('/root/.my.cnf').each do |line|
+    key, value = line.split('=')
+    case key
+    when 'user'
+      username = value.strip!
+    when 'password'
+      password = value.strip!
+    end
+  end
+else
+  throw "/root/.my.cnf file is needed"
+end
+
+rows = []
+begin
+  # Databases
+  nova     = Mysql.new 'localhost', username, password, 'nova'
+  keystone = Mysql.new 'localhost', username, password, 'keystone'
+  glance   = Mysql.new 'localhost', username, password, 'glance'
+
+  # Prepared statements
+  user_query    = keystone.prepare "select name from user where id = ?"
+  project_query = keystone.prepare "select name from tenant where id = ?"
+  image_query   = glance.prepare "select name from images where id = ?"
+
+  # Query for all running instances
+  instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip from instances inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where vm_state = 'active'"
+  
+  instance_rs = nova.query instances_query
+
+  instance_rs.each_hash do |row|
+    # Shorten the Instance ID
+    instance_id_short = row['uuid'].split('-')[0]
+
+    # Get user name
+    user_query.execute row['user_id']
+    user = user_query.fetch[0]
+    user_query.close
+
+    # Project name
+    project_query.execute row['project_id']
+    project = project_query.fetch[0]
+    project_query.close
+
+    # Image name
+    image_query.execute row['image_ref']
+    image = image_query.fetch[0]
+    image_query.close
+
+    # Build the output row
+    rows << [instance_id_short, project, user, row['hostname'], row['host'], row['fixed_ip'], row['floating_ip'], image]
+  end
+ensure
+  nova.close if nova
+  keystone.close if keystone
+  glance.close if glance
+end
+
+# Print report
+headings = ['ID', 'Project', 'User', 'Instance', 'Host', 'Fixed IP', 'Floating IP', 'Image']
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+
