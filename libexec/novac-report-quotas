@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+require 'pp'
+
+# List of required libraries
+required_libs = ['mysql', 'terminal-table']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or sudo."
+end
+
+# Get a list of clouds
+clouds = NovaDB::get_clouds
+master = clouds.delete(:master)
+
+# Get default quotas
+default_quotas = Quotas::get_default_quotas
+
+# Build a list of project quotas
+projects = {}
+project_names = {}
+begin
+  # Databases
+  keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+  nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+  
+  project_rs = keystone.query "select id, name from tenant"
+  project_rs.each_hash do |row|
+    projects[row['id']] = default_quotas.clone
+    project_names[row['id']] = row['name']
+    quota_rs = nova.query "select resource, hard_limit from quotas where project_id = '#{row['id']}'"
+    quota_rs.each_hash do |quota_row|
+      projects[row['id']][quota_row['resource']] = quota_row['hard_limit']
+    end
+  end
+ensure
+  keystone.close if keystone
+  nova.close if nova
+end
+
+resources_used = {}
+clouds.each do |region, creds|
+  begin
+    nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+    projects.keys.each do |project_id|
+      unless resources_used.has_key?(project_id)
+        resources_used[project_id] = {}
+      end
+      quota_rs = nova.query "select sum(in_use) as sum, resource from quota_usages where project_id = '#{project_id}' group by resource"
+      quota_rs.each_hash do |row|
+        sum = row['sum'].to_i
+        if sum > 0
+          if resources_used[project_id].has_key?(row['resource'])
+            resources_used[project_id][row['resource']] += sum
+          else
+            resources_used[project_id][row['resource']] = sum
+          end
+        end
+      end
+    end
+  ensure
+    nova.close if nova
+  end
+end
+
+# Report used quotas
+resources_used.keys.each do |project_id|
+  rows = []
+  project_name = project_names[project_id]
+  resources = resources_used[project_id]
+  resources.each do |resource, used|
+    limit = projects[project_id][resource]
+    percent = ((used.to_f / limit.to_f) * 100).to_i
+    rows << [resource,used,limit,"#{percent} %"]
+  end
+  next unless rows.any?
+  table = Terminal::Table.new :title => project_name, :headings => ['Resource', 'Used', 'Limit',''], :rows => rows
+
+  puts table
+end
