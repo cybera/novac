@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
+require 'novadb'
 
 # List of required libraries
 required_libs = ['mysql', 'terminal-table']
@@ -19,70 +21,58 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-# Probably better done with the ini library
-username = ''
-password = ''
-if File.exists?('/root/.my.cnf')
-  File.open('/root/.my.cnf').each do |line|
-    key, value = line.split('=')
-    case key
-    when 'user'
-      username = value.strip!
-    when 'password'
-      password = value.strip!
-    end
-  end
-else
-  throw "/root/.my.cnf file is needed"
-end
+# Get a list of clouds
+clouds = NovaDB::get_clouds
 
 rows = []
-begin
-  # Databases
-  nova     = Mysql.new 'localhost', username, password, 'nova'
-  keystone = Mysql.new 'localhost', username, password, 'keystone'
-  glance   = Mysql.new 'localhost', username, password, 'glance'
-
-  # Prepared statements
-  user_query    = keystone.prepare "select name from user where id = ?"
-  project_query = keystone.prepare "select name from tenant where id = ?"
-  image_query   = glance.prepare "select name from images where id = ?"
-
-  # Query for all running instances
-  instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip, instance_types.name as flavor from instances inner join instance_types on instances.instance_type_id=instance_types.id inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where vm_state = 'active'"
+master = clouds.delete(:master)
+clouds.each do |region, creds|
+  begin
+    # Databases
+    nova     = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+    keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+    glance   = Mysql.new master[:server], master[:username], master[:password], 'glance'
   
-  instance_rs = nova.query instances_query
-
-  instance_rs.each_hash do |row|
-    # Shorten the Instance ID
-    instance_id_short = row['uuid'].split('-')[0]
-
-    # Get user name
-    user_query.execute row['user_id']
-    user = user_query.fetch[0]
-
-    # Project name
-    project_query.execute row['project_id']
-    project = project_query.fetch[0]
-
-    # Image name
-    image_query.execute row['image_ref']
-    image = image_query.fetch[0]
-
-    # Build the output row
-    rows << [instance_id_short, project, user, row['hostname'], row['host'], row['fixed_ip'], row['floating_ip'], row['flavor'], image]
+    # Prepared statements
+    user_query    = keystone.prepare "select name from user where id = ?"
+    project_query = keystone.prepare "select name from tenant where id = ?"
+    image_query   = glance.prepare "select name from images where id = ?"
+  
+    # Query for all running instances
+    instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip, instance_types.name as flavor from instances inner join instance_types on instances.instance_type_id=instance_types.id inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where vm_state = 'active'"
+  
+    instance_rs = nova.query instances_query
+    instance_rs.each_hash do |row|
+      # Shorten the Instance ID
+      instance_id_short = row['uuid'].split('-')[0]
+  
+      # Get user name
+      user_query.execute row['user_id']
+      user = user_query.fetch[0]
+  
+      # Project name
+      project_query.execute row['project_id']
+      project = project_query.fetch[0]
+  
+      # Image name
+      image_query.execute row['image_ref']
+      image = image_query.fetch[0]
+  
+      # Build the output row
+      rows << [instance_id_short, project, user, region, row['hostname'], row['host'], row['fixed_ip'], row['floating_ip'], row['flavor'], image]
+    end
+  ensure
+    nova.close if nova
+    keystone.close if keystone
+    glance.close if glance
+    user_query.close if user_query
+    project_query.close if project_query
+    image_query.close if image_query
   end
-ensure
-  nova.close if nova
-  keystone.close if keystone
-  glance.close if glance
-  user_query.close if user_query
-  project_query.close if project_query
-  image_query.close if image_query
 end
-
+  
 # Print report
-headings = ['ID', 'Project', 'User', 'Instance', 'Host', 'Fixed IP', 'Floating IP', 'Flavor', 'Image']
+headings = ['ID', 'Project', 'User', 'Region', 'Instance', 'Host', 'Fixed IP', 'Floating IP', 'Flavor', 'Image']
 
 table = Terminal::Table.new :headings => headings, :rows => rows
 puts table
