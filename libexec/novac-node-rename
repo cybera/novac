@@ -6,8 +6,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../share/novac/li
 import novadb
 
 parser = argparse.ArgumentParser()
-parser.add_argument('instance_name', nargs='?', help='instance name, uuid, or instance id of a node', required=True, metavar="CURRENT_INSTANCE_NAME")
-parser.add_argument('instance_rename', nargs='?', help='new name for the instance', required=True, metavar="NEW_INSTANCE_NAME")
+parser.add_argument('instance_name', nargs='?', help='instance name, uuid, or instance id of a node', metavar="CURRENT_INSTANCE_NAME")
+parser.add_argument('instance_rename', nargs='?', help='new name for the instance', metavar="NEW_INSTANCE_NAME")
 parser.add_argument('--project', help='the id of the project', required=True)
 args = parser.parse_args()
 
