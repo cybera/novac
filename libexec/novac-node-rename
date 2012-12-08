@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, argparse
-sys.path.append(os.path.abspath(__file__) + "/../../share/novac/lib")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../share/novac/lib")
 
 import novadb
 
@@ -10,8 +10,7 @@ parser.add_argument('instance_name', nargs='?', help='instance name, uuid, or in
 parser.add_argument('project_id', nargs='?', help='the project_id to constrain the statement to')
 args = parser.parse_args()
 
-where = " WHERE " + novadb.instance_name_constraint(args.instance_name)
+where = novadb.instance_name_constraint(args.instance_name)
 where += " AND project_id = '%s'" % args.project_id
-results = novadb.execute("SELECT display_name, hostname, display_description FROM instances" + where)
-
-print(results)
+setcols = "display_name = '%(instance_name)s', hostname = '%(instance_name)s', display_description = '%(instance_name)s'" % locals()
+novadb.execute("UPDATE instances SET " + setcols + " WHERE " + where)

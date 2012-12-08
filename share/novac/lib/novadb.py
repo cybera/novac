@@ -13,16 +13,16 @@ def execute(statement):
 def _db_credentials():
     parser = ConfigParser.SafeConfigParser()
     if '/root/.my.cnf' in parser.read('/root/.my.cnf'):
-        { "user": parser.get("client", "user"), "pass": parser.get("client", "password") }
+        return { "user": parser.get("client", "user"), "pass": parser.get("client", "password") }
     else:
-        { "user": raw_input("Enter MySQL user: "), "pass": raw_input("Enter MySQL password: ") }
+        return { "user": raw_input("Enter MySQL user: "), "pass": raw_input("Enter MySQL password: ") }
 
 def _db_connection(db="nova"):
     creds = _db_credentials()
     creds["db"] = db
     connection_string = "mysql://%(user)s:%(pass)s@localhost/%(db)s" % creds 
     try:
-        create_engine(connection_string)
+        return create_engine(connection_string)
     except:
         sys.exit("Couldn't connect to database! "
                  "[connection string: %s]" % 
@@ -47,6 +47,6 @@ def instance_name_constraint(instance_name, alias=None):
     elif uuid_re.match(instance_name):
         return "%suuid = '%s'" % (col_prefix, instance_name)
     else:
-        return "%sdisplay_name LIKE '%%%%%s%%%%'" % (col_prefix, instance_name)
+        return "%sdisplay_name = '%s'" % (col_prefix, instance_name)
 
 
