@@ -6,11 +6,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../share/novac/li
 import novadb
 
 parser = argparse.ArgumentParser()
-parser.add_argument('instance_name', nargs='?', help='instance name, uuid, or instance id of a node')
-parser.add_argument('project_id', nargs='?', help='the project_id to constrain the statement to')
+parser.add_argument('instance_name', nargs='?', help='instance name, uuid, or instance id of a node', required=True, metavar="CURRENT_INSTANCE_NAME")
+parser.add_argument('instance_rename', nargs='?', help='new name for the instance', required=True, metavar="NEW_INSTANCE_NAME")
+parser.add_argument('--project', help='the id of the project', required=True)
 args = parser.parse_args()
 
 where = novadb.instance_name_constraint(args.instance_name)
-where += " AND project_id = '%s'" % args.project_id
-setcols = "display_name = '%(instance_name)s', hostname = '%(instance_name)s', display_description = '%(instance_name)s'" % locals()
+where += " AND project_id = '%s'" % args.project
+setcols = "display_name = '%(name)s', hostname = '%(name)s', display_description = '%(name)s'" % {'name': args.instance_rename}
+
 novadb.execute("UPDATE instances SET " + setcols + " WHERE " + where)
