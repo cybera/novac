@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+require 'projects'
+
+# List of required libraries
+required_libs = ['mysql', 'terminal-table']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or sudo."
+end
+
+# create quota object
+quotas = Quotas.new
+
+# Build a list of project quotas
+p = Projects.new
+
+# Get the quota for each project
+# As well as resources used
+quota = {}
+resources_used = {}
+p.project_ids.each do |project_id|
+  quota[project_id] = quotas.project_quota(project_id)
+  resources_used[project_id] = quotas.used(project_id)
+end
+
+# Report quota usage
+x = p.projects.sort_by { |k,v| v }
+x.each do |project_id, project_name|
+  rows = []
+  q = quota[project_id].sort_by { |k,v| k }
+  q.each do |resource, limit|
+    used = 0
+    if resources_used[project_id].has_key?(resource)
+      used = resources_used[project_id][resource]
+    end
+    percent = ((used.to_f / limit.to_f) * 100).to_i
+    rows << [resource,used,limit,"#{percent} %"]
+  end
+  next unless rows.any?
+  table = Terminal::Table.new :title => project_name, :headings => ['Resource', 'Used', 'Limit',''], :rows => rows, :style => { :width => 80 }
+  table.align_column(-1, :right)
+  table.align_column(-2, :right)
+  table.align_column(-3, :right)
+
+  puts table
+end

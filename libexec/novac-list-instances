@@ -22,11 +22,12 @@ if Process.euid != 0
 end
 
 # Get a list of clouds
-clouds = NovaDB::get_clouds
+novadb = NovaDB.new
+clouds = novadb.clouds
 
 rows = []
-master = clouds.delete(:master)
-clouds.each do |region, creds|
+master = novadb.master_cloud
+novadb.clouds.each do |region, creds|
   begin
     # Databases
     nova     = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
