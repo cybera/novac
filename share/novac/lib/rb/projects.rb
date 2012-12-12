@@ -1,4 +1,14 @@
 require 'novadb'
+
+# required libs
+required_libs = ['mysql']
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+end
+
 class Projects
 
   attr_accessor :projects

@@ -1,4 +1,15 @@
 require 'novadb'
+require 'projects'
+
+# required libs
+required_libs = ['mysql']
+begin
+  required_libs.each { |l| require l}
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+end
+
 class Quotas
 
   attr_accessor :defaults
@@ -20,7 +31,6 @@ class Quotas
       'security_group_rules'        => 20,
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
-      'volume_gigabytes'            => 1000
     }
   end
 
@@ -49,22 +59,27 @@ class Quotas
     end
   end
 
-  def _count_usages(resources, query)
-    # Loop through used resources
-    query.each_hash do |row|
-      sum = row['sum'].to_i
-      # Combine resources used across all clouds
-      if sum > 0
-        if resources.has_key?(row['resource'])
-          resources[row['resource']] += sum
-        else
-          resources[row['resource']] = sum
-        end
-      end
-    end
-    resources
-  end
+  def project_quota_limits(project_id)
+    quota = {}
+    begin
+      # Get the master cloud
+      master = @novadb.master_cloud
 
+      # Connect to the nova table on the master cloud's db
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+      
+      # Query for the non-default quota items in the project
+      quota_rs = nova.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
+
+      quota_rs.each_hash do |row|
+        quota[row['resource']] = row['hard_limit']
+      end
+
+      quota
+    ensure
+      nova.close if nova
+    end
+  end
 
   def used(project_id)
     resources = {}
@@ -75,13 +90,49 @@ class Quotas
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
 
+        # Piece together used stuff
+        queries = {
+          :instance_count => {
+            :query => "select count(*) as instances from instances 
+              where project_id = '#{project_id}' and deleted = 0",
+            :table => nova
+          },
+          :instance_usage_info => {
+            :query => "select sum(memory_mb) ram, sum(vcpus) as cores from instances 
+              where project_id = '#{project_id}' and deleted = 0",
+            :table => nova,
+          },
+          :floating_ip_count => {
+            :query => "select count(*) as floating_ips from floating_ips 
+              where project_id = '#{project_id}'",
+            :table => nova,
+          },
+          :volume_count => {
+            :query => "select count(*) as volumes from volumes 
+              where project_id = '#{project_id}' and deleted = 0",
+            :table => cinder,
+          },
+          :volume_usage_info => {
+            :query => "select sum(size) as gigabytes from volumes 
+              where project_id = '#{project_id}' and deleted = 0",
+            :table => cinder,
+          }
+        }
+        
         # Query the quota_usages table for all resources used by the project
-        query = nova.query "select sum(in_use) as sum, resource from quota_usages where project_id = '#{project_id}' group by resource"
-        resources = _count_usages(resources, query)
-
-        query = cinder.query "select sum(in_use) as sum, resource from quota_usages where project_id = '#{project_id}' group by resource"
-        resources = _count_usages(resources, query)
-
+        queries.each do |query, query_info|
+          q = query_info[:query]
+          table = query_info[:table]
+          rs = table.query q
+          rs.fetch_hash.each do |column, value|
+            next if value.to_i < 0
+            if resources.has_key?(column)
+              resources[column] += value.to_i
+            else
+              resources[column] = value.to_i
+            end
+          end
+        end
       ensure
         nova.close if nova
       end
@@ -89,26 +140,93 @@ class Quotas
     resources
   end
 
+  def balance_quotas(project_id)
+    clouds = @novadb.clouds
+    used = used(project_id)
+    clouds.each do |region, creds|
+      used.each do |resource, in_use|
+        set_used(project_id, region, resource, in_use)
+      end
+    end
+  end
+
+  def balance_all_quotas
+    projects = Projects.new
+    projects.project_ids.each do |project_id|
+      balance_quotas(project_id)
+    end
+  end
+
+  def sync_limits(project_id)
+    clouds = @novadb.clouds
+    limits = project_quota_limits(project_id)
+    clouds.each do |region, creds|
+      limits.each do |resource, limit|
+        set_project_quota_limits(project_id, region, resource, limit)
+      end
+    end
+  end
+
+  def sync_all_limits
+    projects = Projects.new
+    projects.project_ids.each do |project_id|
+      sync_limits(project_id)
+    end
+  end
+
+  def set_project_quota_limits(project_id, region, resource, limit)
+    cloud = @novadb.clouds[region]
+    begin
+      nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
+
+      # Update statement
+      update_query = "update quotas set hard_limit = ? where resource = ? and project_id = ?"
+      update = nova.prepare update_query
+
+      # Insert statement
+      insert_query = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, ?, ?, ?)"
+      insert = nova.prepare insert_query
+
+      quota_rs = nova.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
+      count = quota_rs.fetch_hash
+      if count['c'].to_i == 1
+        update.execute limit, resource, project_id
+      elsif count['c'].to_i == 0
+        insert.execute project_id, resource, limit
+      else
+        throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count['c']} entries for #{resource}"
+      end
+    ensure
+      update.close if update
+      insert.close if insert
+      nova.close if nova
+    end
+  end
+  
   def set_used(project_id, region, resource, in_use)
     cloud = @novadb.clouds[region]
     begin
       nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
 
       # Update statement
-      update = nova.prepare "update quota_usages set in_use = ? where resource = ?"
-      insert = nova.prepare "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
+      update_query = "update quota_usages set in_use = ? where resource = ? and project_id = ?"
+      update = nova.prepare update_query
 
-      quota_rs = nova.query "select count(*) as c from quotas_usages where project_id = '#{project_id}'"
+      # Insert statement
+      insert_query = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
+      insert = nova.prepare insert_query
+
+      quota_rs = nova.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
       count = quota_rs.fetch_hash
       if count['c'].to_i == 1
-        update.execute in_use, resource
-      elsif count['c'] == 0
-        insert.execute project_id, resource, in_use
+        update.execute in_use, resource, project_id
+      elsif count['c'].to_i == 0
+        unless in_use == 0
+          insert.execute project_id, resource, in_use
+        end
       else
         throw "Unable to update #{resource} to #{in_use}. #{project_id} has #{count['c']} entries for #{resource}"
       end
-    rescue Mysql::Error => e
-      puts e
     ensure
       update.close if update
       insert.close if insert

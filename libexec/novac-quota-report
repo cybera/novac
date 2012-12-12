@@ -6,7 +6,7 @@ require 'quotas'
 require 'projects'
 
 # List of required libraries
-required_libs = ['mysql', 'terminal-table']
+required_libs = ['terminal-table']
 
 # Try to load each of the libraries
 # Fail if unable to and list what libs are needed

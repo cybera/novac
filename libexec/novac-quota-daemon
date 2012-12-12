@@ -1,0 +1,88 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+require 'logger'
+require 'pp'
+
+# List of required libraries
+required_libs = ['eventmachine', 'amqp', 'json']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or sudo."
+end
+
+# Create a logger
+logger = Logger.new('/var/log/nova/quotas.log')
+
+# Get the rabbitmq queues
+novadb = NovaDB.new
+queues = novadb.queues
+
+# Create a quota object
+quota = Quotas.new
+
+# Array of events to monitor for
+events = ['compute.instance.create.start', 'compute.instance.delete.end',
+          'volume.create.start', 'volume.delete.end',
+          'network.floating_ip.allocate', 'network.floating_ip.deallocate']
+
+logger.info('Initialized OK')
+
+# Handle errors
+EventMachine.error_handler do |e|
+  logger.error e.inspect
+  logger.error e.backtrace.first
+end
+
+# Start the main event loop
+# This reads in all available rabbitmq servers,
+# connects to them, then monitors their monitor.*
+# topic for certain events triggered by nova
+begin
+  EventMachine.run do
+    logger.info('EventMachine started')
+    queues.each do |region, creds|
+      conn = AMQP.connect(creds)
+      ch   = AMQP::Channel.new(conn)
+      ex   = ch.topic('nova')
+ 
+      logger.info("Monitoring nova.monitor.* on #{region}")
+      ch.queue('monitor').bind(ex, :routing_key => 'monitor.*').subscribe do |headers, payload|
+        p = JSON.parse(payload)
+        if p.has_key?('event_type')
+          event = p['event_type']
+          logger.info(event)
+          if events.include?(event)
+            logger.info("Caught event: #{event}")
+            if p.has_key?('payload')
+              if p['payload'].has_key?('tenant_id')
+                tenant_id = p['payload']['tenant_id']
+                logger.info("Balancing quotas for #{tenant_id}")
+                quota.balance_quotas(tenant_id)
+              elsif p['payload'].has_key?('project_id')
+                project_id = p['payload']['project_id']
+                logger.info("Balancing quotas for #{project_id}")
+                quota.balance_quotas(project_id)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+rescue Exception => e
+  logger.error(e)
+end
