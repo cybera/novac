@@ -39,7 +39,7 @@ class Quotas
       # Get the master cloud
       master = @novadb.master_cloud
 
-      # Connect to the nova table on the master cloud's db
+      # Connect to the nova database on the master cloud's db
       nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
       quota = @defaults.clone
 
@@ -65,7 +65,7 @@ class Quotas
       # Get the master cloud
       master = @novadb.master_cloud
 
-      # Connect to the nova table on the master cloud's db
+      # Connect to the nova database on the master cloud's db
       nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
       
       # Query for the non-default quota items in the project
@@ -95,35 +95,35 @@ class Quotas
           :instance_count => {
             :query => "select count(*) as instances from instances 
               where project_id = '#{project_id}' and deleted = 0",
-            :table => nova
+            :database => nova
           },
           :instance_usage_info => {
             :query => "select sum(memory_mb) ram, sum(vcpus) as cores from instances 
               where project_id = '#{project_id}' and deleted = 0",
-            :table => nova,
+            :database => nova,
           },
           :floating_ip_count => {
             :query => "select count(*) as floating_ips from floating_ips 
               where project_id = '#{project_id}'",
-            :table => nova,
+            :database => nova,
           },
           :volume_count => {
             :query => "select count(*) as volumes from volumes 
               where project_id = '#{project_id}' and deleted = 0",
-            :table => cinder,
+            :database => cinder,
           },
           :volume_usage_info => {
             :query => "select sum(size) as gigabytes from volumes 
               where project_id = '#{project_id}' and deleted = 0",
-            :table => cinder,
+            :database => cinder,
           }
         }
         
-        # Query the quota_usages table for all resources used by the project
+        # Perform all queries to do a manual inventory
         queries.each do |query, query_info|
           q = query_info[:query]
-          table = query_info[:table]
-          rs = table.query q
+          database = query_info[:database]
+          rs = database.query q
           rs.fetch_hash.each do |column, value|
             next if value.to_i < 0
             if resources.has_key?(column)
