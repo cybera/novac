@@ -31,6 +31,7 @@ class Quotas
       'security_group_rules'        => 20,
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
+      'images'                      => 5,
     }
   end
 
@@ -89,6 +90,7 @@ class Quotas
         # Connect to nova database of the current cloud
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
+        glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
 
         # Piece together used stuff
         queries = {
@@ -116,6 +118,11 @@ class Quotas
             :query => "select sum(size) as gigabytes from volumes 
               where project_id = '#{project_id}' and deleted = 0",
             :database => cinder,
+          },
+          :image_count => {
+            :query => "select count(*) as images from images
+              where owner = '#{project_id}' and status != 'deleted'",
+            :database => glance,
           }
         }
         
@@ -135,6 +142,8 @@ class Quotas
         end
       ensure
         nova.close if nova
+        cinder.close if cinder
+        glance.close if glance
       end
     end
     resources

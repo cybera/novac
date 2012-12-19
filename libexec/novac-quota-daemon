@@ -37,7 +37,8 @@ quota = Quotas.new
 # Array of events to monitor for
 events = ['compute.instance.create.start', 'compute.instance.delete.end',
           'volume.create.start', 'volume.delete.end',
-          'network.floating_ip.allocate', 'network.floating_ip.deallocate']
+          'network.floating_ip.allocate', 'network.floating_ip.deallocate',
+          'image.upload', 'image.delete', 'image.update']
 
 logger.info('Initialized OK')
 
@@ -68,12 +69,15 @@ begin
           if events.include?(event)
             logger.info("Caught event: #{event}")
             if p.has_key?('payload')
+              project_id = nil 
               if p['payload'].has_key?('tenant_id')
-                tenant_id = p['payload']['tenant_id']
-                logger.info("Balancing quotas for #{tenant_id}")
-                quota.balance_quotas(tenant_id)
+                project_id = p['payload']['tenant_id']
               elsif p['payload'].has_key?('project_id')
                 project_id = p['payload']['project_id']
+              elsif p['payload'].has_key?('owner')
+                project_id = p['payload']['owner']
+              end
+              if project_id
                 logger.info("Balancing quotas for #{project_id}")
                 quota.balance_quotas(project_id)
               end
