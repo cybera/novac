@@ -183,6 +183,13 @@ class Quotas
     end
   end
 
+  def set_project_quota_limit_in_all_regions(project_id, resource, limit)
+    clouds = @novadb.clouds
+    clouds.each do |region, creds|
+      set_project_quota_limits(project_id, region, resource, limit)
+    end
+  end
+
   def set_project_quota_limits(project_id, region, resource, limit)
     cloud = @novadb.clouds[region]
     begin
