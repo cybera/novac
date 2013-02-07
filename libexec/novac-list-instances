@@ -41,7 +41,7 @@ novadb.clouds.each do |region, creds|
     ec2_query     = nova.prepare "select id from instance_id_mappings where uuid = ?"
   
     # Query for all running instances
-    instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip, instance_types.name as flavor from instances inner join instance_types on instances.instance_type_id=instance_types.id inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where vm_state = 'active'"
+    instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip, vm_state, instance_types.name as flavor from instances inner join instance_types on instances.instance_type_id=instance_types.id inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where instances.deleted = 0"
   
     instance_rs = nova.query instances_query
     instance_rs.each_hash do |row|
@@ -69,7 +69,7 @@ novadb.clouds.each do |region, creds|
 
   
       # Build the output row
-      rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['flavor'], image]
+      rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], image]
     end
   ensure
     nova.close if nova
@@ -82,7 +82,7 @@ novadb.clouds.each do |region, creds|
 end
   
 # Print report
-headings = ['ID', 'Project', 'User', 'Region', 'Instance', 'EC2 ID', 'Host', 'Fixed IP', 'Floating IP', 'Flavor', 'Image']
+headings = ['ID', 'Project', 'User', 'Region', 'Instance', 'EC2 ID', 'Host', 'Fixed IP', 'Floating IP', 'VM State', 'Flavor', 'Image']
 
 table = Terminal::Table.new :headings => headings, :rows => rows
 puts table

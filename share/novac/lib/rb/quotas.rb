@@ -35,6 +35,8 @@ class Quotas
     }
   end
 
+  # Returns a hash of the project's quota limits
+  # Including defaults
   def project_quota(project_id)
     begin
       # Get the master cloud
@@ -60,6 +62,8 @@ class Quotas
     end
   end
 
+  # Returns a hash of the project's quota limits
+  # But no defaults
   def project_quota_limits(project_id)
     quota = {}
     begin
@@ -82,6 +86,7 @@ class Quotas
     end
   end
 
+  # Manually calculates the resources that a project has used
   def used(project_id)
     resources = {}
     # Loop through all clouds
@@ -149,6 +154,7 @@ class Quotas
     resources
   end
 
+  # Makes sure that the quota in each region is the same
   def balance_quotas(project_id)
     clouds = @novadb.clouds
     used = used(project_id)
@@ -159,6 +165,7 @@ class Quotas
     end
   end
 
+  # Runs balance_quotas for each project
   def balance_all_quotas
     projects = Projects.new
     projects.project_ids.each do |project_id|
@@ -166,6 +173,7 @@ class Quotas
     end
   end
 
+  # Sets the non-default limits for a project in both regions
   def sync_limits(project_id)
     clouds = @novadb.clouds
     limits = project_quota_limits(project_id)
@@ -176,6 +184,7 @@ class Quotas
     end
   end
 
+  # Runs sync_limits for all regions
   def sync_all_limits
     projects = Projects.new
     projects.project_ids.each do |project_id|
@@ -183,6 +192,7 @@ class Quotas
     end
   end
 
+  # Runs set_project_quota_limits in all regions
   def set_project_quota_limit_in_all_regions(project_id, resource, limit)
     clouds = @novadb.clouds
     clouds.each do |region, creds|
@@ -190,6 +200,7 @@ class Quotas
     end
   end
 
+  # Sets a non-default limit for a certain resource for a single project in a single region
   def set_project_quota_limits(project_id, region, resource, limit)
     cloud = @novadb.clouds[region]
     begin
