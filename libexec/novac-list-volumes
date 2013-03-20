@@ -32,7 +32,7 @@ novadb.clouds.each do |region, creds|
     cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
   
     # Query for all active volumes
-    volumes_query = "select volumes.id as id, tenant.name as project, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes inner join keystone.tenant on cinder.volumes.project_id=keystone.tenant.id left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available')" 
+    volumes_query = "select volumes.id as id, tenant.name as project, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes inner join keystone.tenant on cinder.volumes.project_id=keystone.tenant.id left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by tenant.name, volumes.display_name, status" 
   
     volumes_rs = cinder.query volumes_query
     volumes_rs.each_hash do |row|
