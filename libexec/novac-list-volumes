@@ -24,32 +24,49 @@ end
 # Get a list of clouds
 novadb = NovaDB.new
 
-rows = []
+rows = {}
 master = novadb.master_cloud
 novadb.clouds.each do |region, creds|
   begin
     # Databases
-    cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
+    cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
+    keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
   
     # Query for all active volumes
-    volumes_query = "select volumes.id as id, tenant.name as project, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes inner join keystone.tenant on cinder.volumes.project_id=keystone.tenant.id left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by tenant.name, volumes.display_name, status" 
+    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status" 
   
     volumes_rs = cinder.query volumes_query
     volumes_rs.each_hash do |row|
       # Shorten the Instance ID
       volume_id_short = row['id'].split('-')[0]
 
+      # Get the project name
+      project_rs = keystone.query "select name from tenant where id = '#{row['project_id']}'"
+      project = project_rs.fetch_hash['name']
+
       # Build the output row
-      rows << [volume_id_short, row['volume'], row['project'], row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size']]
+      if not rows.has_key?(project)
+        rows[project] = []
+      end
+      rows[project] << [volume_id_short, row['volume'], project, row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size'], region]
     end
   ensure
     cinder.close if cinder
+    keystone.close if keystone
   end
 end
   
 # Print report
-headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)']
+headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)', 'Region']
 
-table = Terminal::Table.new :headings => headings, :rows => rows
+# Sort based on project
+r = []
+rows.keys.sort!.each do |project|
+  rows[project].each do |row|
+    r << row
+  end
+end
+
+table = Terminal::Table.new :headings => headings, :rows => r
 puts table
 

@@ -26,60 +26,54 @@ novadb = NovaDB.new
 
 rows = []
 master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
-  begin
-    # Databases
-    glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+# Database
+glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+
+# Query for all active images
+images_query = "select images.id, images.name as image_name, size, is_public, tenant.name as tenant_name from glance.images inner join keystone.tenant on keystone.tenant.id=glance.images.owner where glance.images.status = 'active' order by tenant.name"
   
-    # Query for all active images
-    images_query = "select images.id, images.name as image_name, size, is_public, tenant.name as tenant_name from glance.images inner join keystone.tenant on keystone.tenant.id=glance.images.owner where glance.images.status = 'active' order by tenant.name"
-  
-    images_rs = glance.query images_query
-    images_rs.each_hash do |row|
+images_rs = glance.query images_query
+images_rs.each_hash do |row|
 
-      # Get some extra data about the image
-      base_image_ref = nil
-      is_snapshot = 'No'
-      image_query = "select name, value from image_properties where image_id = '#{row['id']}'"
-      image_rs = glance.query image_query
-      image_rs.each_hash do |image_row|
-        case image_row['name']
-        when 'image_location'
-          if image_row['value'] == 'snapshot'
-            is_snapshot = 'Yes'
-          end
-        when 'base_image_ref'
-          base_image_ref = image_row['value']
-        end
+  # Get some extra data about the image
+  base_image_ref = nil
+  is_snapshot = 'No'
+  image_query = "select name, value from image_properties where image_id = '#{row['id']}'"
+  image_rs = glance.query image_query
+  image_rs.each_hash do |image_row|
+    case image_row['name']
+    when 'image_location'
+      if image_row['value'] == 'snapshot'
+        is_snapshot = 'Yes'
       end
-
-      # Shorten the Instance ID
-      images_id_short = row['id'].split('-')[0]
-
-      # Yes/no for public
-      if row['is_public'] == "1"
-        is_public = 'Yes'
-      else
-        is_public = 'No'
-      end
-
-      # Size in GB
-      size = sprintf("%.2f", (row['size'].to_i / 1024 / 1024 / 1024.0))
-
-      # Get the base image
-      if base_image_ref
-        base_query = glance.query "select name from images where id = '#{base_image_ref}'"
-        base_image_name = base_query.fetch_hash['name']
-      else
-        base_image_name = nil
-      end
-
-      # Build the output row
-      rows << [images_id_short, row['image_name'], row['tenant_name'], is_snapshot, base_image_name, size, is_public]
+    when 'base_image_ref'
+      base_image_ref = image_row['value']
     end
-  ensure
-    glance.close if glance
   end
+
+  # Shorten the Instance ID
+  images_id_short = row['id'].split('-')[0]
+
+  # Yes/no for public
+  if row['is_public'] == "1"
+    is_public = 'Yes'
+  else
+    is_public = 'No'
+  end
+
+  # Size in GB
+  size = sprintf("%.2f", (row['size'].to_i / 1024 / 1024 / 1024.0))
+
+  # Get the base image
+  if base_image_ref
+    base_query = glance.query "select name from images where id = '#{base_image_ref}'"
+    base_image_name = base_query.fetch_hash['name']
+  else
+    base_image_name = nil
+  end
+
+  # Build the output row
+  rows << [images_id_short, row['image_name'], row['tenant_name'], is_snapshot, base_image_name, size, is_public]
 end
   
 # Print report
