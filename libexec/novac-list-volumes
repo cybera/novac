@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+
+# List of required libraries
+required_libs = ['terminal-table','mysql']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Get a list of clouds
+novadb = NovaDB.new
+
+rows = []
+master = novadb.master_cloud
+novadb.clouds.each do |region, creds|
+  begin
+    # Databases
+    cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
+  
+    # Query for all active volumes
+    volumes_query = "select volumes.id as id, tenant.name as project, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes inner join keystone.tenant on cinder.volumes.project_id=keystone.tenant.id left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available')" 
+  
+    volumes_rs = cinder.query volumes_query
+    volumes_rs.each_hash do |row|
+      # Shorten the Instance ID
+      volume_id_short = row['id'].split('-')[0]
+
+      # Build the output row
+      rows << [volume_id_short, row['volume'], row['project'], row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size']]
+    end
+  ensure
+    cinder.close if cinder
+  end
+end
+  
+# Print report
+headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)']
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+
