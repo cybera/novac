@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ "$1" = "" -o "$2" = "" ]; then
+  echo "Usage: novac swift-quota-set <project> <quota in bytes>"
+  exit 1
+fi
+
+source /root/swiftquotarc
+export OS_USERNAME=${1}:admin
+
+cat /root/.mysqlrc | while read line
+do
+  REGION=$(echo $line | cut -d, -f1)
+  export OS_REGION_NAME=$REGION
+  swift post -m quota-bytes:$2
+done

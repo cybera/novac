@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+require 'projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or sudo."
+end
+
+# novac command
+novac = "/root/novac/bin/novac"
+
+# sync the quota limits
+system("#{novac} quota-sync-limits")
+
+# Balance the quota between regions
+system("#{novac} quota-balance")
+
+# Loop through all projects and see what users are over quota and what users aren't.
+projects = Projects.new
+quotas = Quotas.new
+projects.project_ids.each do |project_id|
+  limit = Integer(quotas.project_quota(project_id)['object_gb']) * 1024
+  used = Integer(quotas.used(project_id)['object_gb'])
+  project = projects.projects[project_id]
+  # If the user is over quota, set their swift quota to 0 so they can't upload more.
+  if used > limit
+    command = "#{project} 0"
+  # If they aren't over quota, set their swift quota to their limit. This effectively
+  # re-enables uploads after the user deletes some files.
+  else
+    quota_in_bytes = limit * 1024 * 1024
+    command = "#{project} #{quota_in_bytes}"
+  end
+  system("#{novac} swift-set-quota #{command}")
+end

@@ -32,6 +32,7 @@ class Quotas
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
       'images'                      => 5,
+      'object_gb'                   => 5,
     }
   end
 
@@ -89,6 +90,7 @@ class Quotas
   # Manually calculates the resources that a project has used
   def used(project_id)
     resources = {}
+
     # Loop through all clouds
     @novadb.clouds.each do |region, creds|
       begin
@@ -96,8 +98,8 @@ class Quotas
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
         glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
-
-        # Piece together used stuff
+       
+        # These queries are used to manually calculate the resources
         queries = {
           :instance_count => {
             :query => "select count(*) as instances from instances 
@@ -128,9 +130,21 @@ class Quotas
             :query => "select count(*) as images from images
               where owner = '#{project_id}' and status != 'deleted'",
             :database => glance,
+          },
+          # Object Storage is handled a little differently.
+          # Since object usage is stored in swift itself, it's not as
+          # simple as querying a table. To get around this, a separate
+          # process will be called via cron to insert each tenant's
+          # usage in each region into the quota_usages table but
+          # in the form of "swift_object_regional_usage".
+          # "object_gb" will simply be the sum of the two other rows.
+          :object_gb_usage => {
+            :query => "select in_use as object_gb from quota_usages
+              where project_id = '#{project_id}' and resource = 'swift_regional_object_usage'",
+            :database => nova,
           }
         }
-        
+
         # Perform all queries to do a manual inventory
         queries.each do |query, query_info|
           q = query_info[:query]
@@ -173,7 +187,7 @@ class Quotas
     end
   end
 
-  # Sets the non-default limits for a project in both regions
+  # Sets the non-default limits for a project in all regions
   def sync_limits(project_id)
     clouds = @novadb.clouds
     limits = project_quota_limits(project_id)
@@ -184,7 +198,7 @@ class Quotas
     end
   end
 
-  # Runs sync_limits for all regions
+  # Runs sync_limits for all projects
   def sync_all_limits
     projects = Projects.new
     projects.project_ids.each do |project_id|
