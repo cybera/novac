@@ -23,8 +23,8 @@ system("#{novac} quota-balance")
 projects = Projects.new
 quotas = Quotas.new
 projects.project_ids.each do |project_id|
-  limit = Integer(quotas.project_quota(project_id)['object_gb']) * 1024
-  used = Integer(quotas.used(project_id)['object_gb'])
+  limit = Integer(quotas.project_quota(project_id)['object_mb'])
+  used = Integer(quotas.used(project_id)['object_mb'])
   project = projects.projects[project_id]
   # If the user is over quota, set their swift quota to 0 so they can't upload more.
   if used > limit

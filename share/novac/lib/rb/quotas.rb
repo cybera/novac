@@ -32,7 +32,7 @@ class Quotas
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
       'images'                      => 5,
-      'object_gb'                   => 5,
+      'object_mb'                   => 2048,
     }
   end
 
@@ -73,7 +73,7 @@ class Quotas
 
       # Connect to the nova database on the master cloud's db
       nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
-      
+
       # Query for the non-default quota items in the project
       quota_rs = nova.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
 
@@ -98,31 +98,31 @@ class Quotas
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
         glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
-       
+
         # These queries are used to manually calculate the resources
         queries = {
           :instance_count => {
-            :query => "select count(*) as instances from instances 
+            :query => "select count(*) as instances from instances
               where project_id = '#{project_id}' and deleted = 0",
             :database => nova
           },
           :instance_usage_info => {
-            :query => "select sum(memory_mb) ram, sum(vcpus) as cores from instances 
+            :query => "select sum(memory_mb) ram, sum(vcpus) as cores from instances
               where project_id = '#{project_id}' and deleted = 0",
             :database => nova,
           },
           :floating_ip_count => {
-            :query => "select count(*) as floating_ips from floating_ips 
+            :query => "select count(*) as floating_ips from floating_ips
               where project_id = '#{project_id}'",
             :database => nova,
           },
           :volume_count => {
-            :query => "select count(*) as volumes from volumes 
+            :query => "select count(*) as volumes from volumes
               where project_id = '#{project_id}' and deleted = 0",
             :database => cinder,
           },
           :volume_usage_info => {
-            :query => "select sum(size) as gigabytes from volumes 
+            :query => "select sum(size) as gigabytes from volumes
               where project_id = '#{project_id}' and deleted = 0",
             :database => cinder,
           },
@@ -137,9 +137,9 @@ class Quotas
           # process will be called via cron to insert each tenant's
           # usage in each region into the quota_usages table but
           # in the form of "swift_object_regional_usage".
-          # "object_gb" will simply be the sum of the two other rows.
-          :object_gb_usage => {
-            :query => "select in_use as object_gb from quota_usages
+          # "object_mb" will simply be the sum of the two other rows.
+          :object_mb_usage => {
+            :query => "select in_use as object_mb from quota_usages
               where project_id = '#{project_id}' and resource = 'swift_regional_object_usage'",
             :database => nova,
           }
@@ -150,12 +150,15 @@ class Quotas
           q = query_info[:query]
           database = query_info[:database]
           rs = database.query q
-          rs.fetch_hash.each do |column, value|
-            next if value.to_i < 0
-            if resources.has_key?(column)
-              resources[column] += value.to_i
-            else
-              resources[column] = value.to_i
+          usage = rs.fetch_hash
+          if usage
+            usage.each do |column, value|
+              next if value.to_i < 0
+              if resources.has_key?(column)
+                resources[column] += value.to_i
+              else
+                resources[column] = value.to_i
+              end
             end
           end
         end
@@ -243,7 +246,7 @@ class Quotas
       nova.close if nova
     end
   end
-  
+
   def set_used(project_id, region, resource, in_use)
     cloud = @novadb.clouds[region]
     begin

@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+
+# variables
+project_id = ARGV[0]
+limit = ARGV[1]
+
+puts project_id
+puts limit
+
+quotas = Quotas.new
+
+quotas.set_project_quota_limit_in_all_regions(project_id, 'object_mb', limit)
