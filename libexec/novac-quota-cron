@@ -23,9 +23,10 @@ system("#{novac} quota-balance")
 projects = Projects.new
 quotas = Quotas.new
 projects.project_ids.each do |project_id|
+  project = projects.projects[project_id]
+  next if project == 'admin'
   limit = Integer(quotas.project_quota(project_id)['object_mb'])
   used = Integer(quotas.used(project_id)['object_mb'])
-  project = projects.projects[project_id]
   # If the user is over quota, set their swift quota to 0 so they can't upload more.
   if used > limit
     command = "#{project} 0"

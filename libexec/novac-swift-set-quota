@@ -5,7 +5,7 @@ if [ "$1" = "" -o "$2" = "" ]; then
   exit 1
 fi
 
-source /root/swiftquotarc
+source /root/openrc
 export OS_USERNAME=${1}:admin
 
 cat /root/.mysqlrc | while read line
