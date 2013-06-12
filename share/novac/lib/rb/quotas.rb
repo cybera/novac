@@ -32,7 +32,7 @@ class Quotas
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
       'images'                      => 5,
-      'object_mb'                   => 2048,
+      'object_mb'                   => 204800,
     }
   end
 
@@ -163,12 +163,12 @@ class Quotas
     end
     resources
   end
-  
+
   # Manually calculates all resources used by all projects
   def all_projects_used
     total_usage = {}
     projects = Projects.new
- 
+
     # Loop through all clouds
     @novadb.clouds.each do |region, creds|
       begin
@@ -180,7 +180,7 @@ class Quotas
         # Loop through each project
         projects.project_ids.each do |project_id|
           resources = {}
-          
+
           # These queries are used to manually calculate the resources
           queries = {
             :instance_count => {
@@ -219,7 +219,7 @@ class Quotas
               :database => nova,
             }
           }
-  
+
           # Perform all queries to do a manual inventory
           queries.each do |query, query_info|
             q = query_info[:query]
@@ -255,14 +255,14 @@ class Quotas
     begin
       # Get the master cloud
       master = @novadb.master_cloud
-  
+
       # Connect to the nova database on the master cloud's db
       nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
-  
+
       # These queries are used to manually calculate the resources
       query = "select in_use as object_mb from quota_usages
               where project_id = '#{project_id}' and resource = 'object_mb'"
-  
+
       rs = nova.query query
       usage = rs.fetch_hash
       if usage
@@ -280,7 +280,7 @@ class Quotas
       nova.close if nova
     end
   end
- 
+
   # Balance quotas in each region for a single project
   def balance_quotas(project_id)
     clouds = @novadb.clouds
@@ -344,7 +344,7 @@ class Quotas
       nova.close if nova
     end
   end
-  
+
   # Sets non-default limits for all projects in all regions
   def sync_all_limits
     clouds = @novadb.clouds
@@ -388,11 +388,11 @@ class Quotas
       cloud = @novadb.clouds[region]
       begin
         nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
-        
-        # Query templates 
+
+        # Query templates
         update_query = "update quota_usages set in_use = ? where resource = ? and project_id = ?"
         insert_query = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
-  
+
         total_usage.each do |project_id, used|
           used.each do |resource, in_use|
             quota_rs = nova.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
@@ -419,13 +419,13 @@ class Quotas
       end
     end
   end
-  
+
   def set_used(project_id, region, resource, in_use)
     cloud = @novadb.clouds[region]
     begin
       nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
 
-      # Query templates 
+      # Query templates
       update_query = "update quota_usages set in_use = ? where resource = ? and project_id = ?"
       insert_query = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
 
