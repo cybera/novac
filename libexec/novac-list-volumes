@@ -33,12 +33,19 @@ novadb.clouds.each do |region, creds|
     keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
   
     # Query for all active volumes
-    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status" 
+    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status" 
   
     volumes_rs = cinder.query volumes_query
     volumes_rs.each_hash do |row|
       # Shorten the Instance ID
       volume_id_short = row['id'].split('-')[0]
+
+      # Shorten the hostname
+      if row['host']
+        host = row['host'].split('.')[0]
+      else
+        host = ''
+      end
 
       # Get the project name
       project_rs = keystone.query "select name from tenant where id = '#{row['project_id']}'"
@@ -48,7 +55,7 @@ novadb.clouds.each do |region, creds|
       if not rows.has_key?(project)
         rows[project] = []
       end
-      rows[project] << [volume_id_short, row['volume'], project, row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size'], region]
+      rows[project] << [volume_id_short, row['volume'], project, row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size'], host, region]
     end
   ensure
     cinder.close if cinder
@@ -57,7 +64,7 @@ novadb.clouds.each do |region, creds|
 end
   
 # Print report
-headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)', 'Region']
+headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)', 'Host', 'Region']
 
 # Sort based on project
 r = []
