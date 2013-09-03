@@ -1,0 +1,150 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'time'
+require 'date'
+require 'novadb'
+require 'projects'
+require 'mysql'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Windows Image Information
+IMAGES = {
+  '2ebc4c91-8b3d-472d-9189-6faabcd9e5e2' => 'Windows 2012',
+  'fffee34c-d3d0-47a0-9716-47ce16244769' => 'Windows 7',
+  '7eecedab-5123-422d-b766-1d513b45396e' => 'Windows 2008 R2',
+  '0decc679-e437-487f-8077-3c89b32fae58' => 'Windows 2008 R2',
+  '87ef156c-de7f-4760-ae1f-2f04d041728e' => 'Windows 2008 R2',
+  '086f3cec-4921-4df2-a681-aeea7e09e5b5' => 'Windows 2008 R2',
+}
+
+# Parse the command-line arguments
+if ARGV.length == 0
+  # No arguments, so use the first and last day of last month
+  cur_date = Date.new(Time.now.year, Time.now.month, 1)
+  last_month = cur_date - 1
+  start_date = "#{last_month.year}-#{last_month.month}-1"
+  end_date = "#{last_month.year}-#{last_month.month}-#{last_month.day}"
+else
+  start_date = ARGV[0]
+  end_date = ARGV.length > 1 ? ARGV[1] : Time.now.strftime("%Y-%m-%d")
+end
+
+# Print heading
+puts "Windows Usage for #{start_date} to #{end_date}"
+puts
+printf("%-20s %-20s %-20s %s\n", "User", "Start", "End", "Hours")
+75.times { print '-' }
+puts
+
+# Start and End dates
+jan1_date = Time.parse('2013-01-01').to_i
+start_date = Time.parse(start_date).to_i
+end_date   = Time.parse(end_date).to_i
+# 11:59:59 of the last day of the month
+end_date += 86399
+
+tenants = {}
+projects = Projects.new
+novadb = NovaDB.new
+master = novadb.master_cloud
+novadb.clouds.each do |region,creds|
+  nova   = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+  glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+  # Query for all instances launched after Jan 1 2013
+  event_rs = nova.query "select * from instances where date(created_at) >= '#{jan1_date}' order by created_at"
+  event_rs.each_hash do |row|
+    image_ref = row['image_ref']
+    # If the image is a snapshot, get the base_image_ref
+    image_rs = glance.query "select value from image_properties where image_id = '#{image_ref}' and name ='base_image_ref'"
+    if image_rs.num_rows > 0
+      image_ref = image_rs.fetch_row[0]
+    end
+
+    # Was the instance a windows image?
+    if IMAGES.keys.include?(image_ref)
+      # Hash for instances
+      instance = {}
+
+      # Get the starting time of the instance
+      instance_start = Time.parse(row['created_at'])
+      instance_id = row['uuid']
+      instance['instance_id'] = instance_id
+      instance['start'] = instance_start
+      instance['end'] = Time.at(end_date)
+      instance['duration'] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
+
+      # If the instance was terminated
+      if (row['vm_state'] == 'deleted')
+        next if not row['terminated_at']
+        instance_end = Time.parse(row['terminated_at'])
+        instance['end'] = instance_end
+        if instance['end'].to_i <= end_date
+          instance['duration'] = ((instance_end - instance_start) / 60).to_i / 60
+        else
+          instance['duration'] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
+        end
+      end
+
+      # Filter unwanted instances
+      next if instance['start'].to_i > end_date
+      next if (instance['end'] and instance['end'].to_i < start_date)
+      #next if (instance['end'] and instance['end'].to_i > end_date)
+      next if instance['duration'] < 1
+
+      # Add an entry to the tenants hash
+      tenant = projects.projects[row['project_id']]
+      tenants[tenant] = [] if ! tenants.has_key?(tenant)
+      tenants[tenant].push(instance)
+
+    end
+  end
+end
+
+grand_total = 0
+tenants.each do |tenant, instances|
+  puts tenant
+  total = instances.length
+  x = {}
+  instances.each do |instance|
+    # Print out the info
+    if instance['end']
+      end_print = 'Still Running'
+      if instance['end'] != Time.at(end_date) and instance['end'].to_i <= end_date
+        end_print = instance['end'].strftime("%Y-%m-%d %H:%M")
+      end
+    end
+    #end_print = instance['end'] != Time.at(end_date) ? instance['end'].strftime("%Y-%m-%d %H:%M") : 'Still Running'
+    start_print = instance['start'].strftime("%Y-%m-%d %H:%M")
+    hours = instance['duration']
+    printf("%-20s %-20s %-20s %-20s\n", '', start_print, end_print, hours)
+  end
+
+  # Figure out overlapping instances
+  intervals = []
+  overlap = 0
+  x = 0
+  instances.each do |instance|
+    intervals << "#{instance['start'].to_i} S"
+    intervals << "#{instance['end'].to_i} E"
+  end
+  intervals.sort!.each do |i|
+    x += 1 if i.split(/\s+/)[1] == 'S'
+    x -= 1 if i.split(/\s+/)[1] == 'E'
+    if x > overlap
+      overlap = x
+    end
+  end
+
+  printf("%-20s %-20s %-20s %-20s\n", '', 'Total Concurrent', '', overlap)
+  puts
+
+  grand_total += overlap
+
+end
+
+puts "Grand total: #{grand_total}"
