@@ -98,7 +98,11 @@ class Quotas
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
         glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
+      rescue
+        next
+      end
 
+      begin
         # These queries are used to manually calculate the resources
         queries = {
           :instance_count => {
@@ -176,6 +180,10 @@ class Quotas
         nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
         cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
         glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
+      rescue
+        next
+      end
+      begin
 
         # Loop through each project
         projects.project_ids.each do |project_id|
