@@ -23,6 +23,13 @@ if Process.euid != 0
   throw "Must run this script as root or sudo."
 end
 
+# Was a project specified?
+if ARGV[0]
+  project = ARGV[0]
+else
+  project = nil
+end
+
 # create quota object
 quotas = Quotas.new
 
@@ -33,20 +40,34 @@ p = Projects.new
 # As well as resources used
 quota = {}
 resources_used = {}
-p.project_ids.each do |project_id|
-  quota[project_id] = quotas.project_quota(project_id)
-  resources_used[project_id] = quotas.used(project_id)
+to_report = {}
+
+if project
+  total_usage = {}
+  p.projects.each do |project_id, project_name|
+    if project_name == project
+      total_usage[project_id] = quotas.used(project_id)
+      to_report[project_id] = project_name
+      quota[project_id] = quotas.project_quota(project_id)
+    end
+  end
+else
+  total_usage = quotas.all_projects_used
+  p.projects.each do |project_id, project_name|
+    to_report[project_id] = project_name
+    quota[project_id] = quotas.project_quota(project_id)
+  end
 end
 
 # Report quota usage
-x = p.projects.sort_by { |k,v| v }
+x = to_report.sort_by { |k,v| v }
 x.each do |project_id, project_name|
   rows = []
   q = quota[project_id].sort_by { |k,v| k }
   q.each do |resource, limit|
     used = 0
-    if resources_used[project_id].has_key?(resource)
-      used = resources_used[project_id][resource]
+    if total_usage[project_id].has_key?(resource)
+      used = total_usage[project_id][resource]
     end
     percent = ((used.to_f / limit.to_f) * 100).to_i
     rows << [resource,used,limit,"#{percent} %"]

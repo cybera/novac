@@ -179,7 +179,9 @@ class Quotas
 
         # Loop through each project
         projects.project_ids.each do |project_id|
-          resources = {}
+          if not total_usage.has_key?(project_id)
+            total_usage[project_id] = {}
+          end
 
           # These queries are used to manually calculate the resources
           queries = {
@@ -229,15 +231,14 @@ class Quotas
             if usage
               usage.each do |column, value|
                 next if value.to_i < 0
-                if resources.has_key?(column)
-                  resources[column] += value.to_i
+                if total_usage[project_id].has_key?(column)
+                  total_usage[project_id][column] += value.to_i
                 else
-                  resources[column] = value.to_i
+                  total_usage[project_id][column] = value.to_i
                 end
               end
             end
           end
-          total_usage[project_id] = resources
         end
       ensure
         nova.close if nova
