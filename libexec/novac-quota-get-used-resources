@@ -1,0 +1,25 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'quotas'
+
+# variables
+project_id = ARGV[0]
+
+if ARGV.length > 1
+  resource = ARGV[1]
+else
+  resource = nil
+end
+
+quotas = Quotas.new
+resources = quotas.get_used_resources(project_id)
+
+if resource
+  puts resources(project_id)[resource]
+else
+  resources.each do |r, v|
+    puts "#{r} #{v}"
+  end
+end

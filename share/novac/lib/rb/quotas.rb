@@ -87,6 +87,32 @@ class Quotas
     end
   end
 
+  # Return the resources used. No manual calculations -- might be out of sync until next balance
+  def get_used_resources(project_id)
+    resources = {}
+    begin
+      # Get the master cloud
+      master = @novadb.master_cloud
+
+      # Connect to the nova database on the master cloud's db
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+      quota = @defaults.clone
+
+      # Query for the quota for the certain project
+      quota_rs = nova.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
+
+      # Build a quota that is a combination of default + project quota
+      quota_rs.each_hash do |row|
+        resources[row['resource']] = row['in_use']
+      end
+
+      # Return the quota
+      resources
+    ensure
+      nova.close if nova
+    end
+  end
+
   # Manually calculates the resources that a project has used
   def used(project_id)
     resources = {}
