@@ -30,7 +30,7 @@ master = novadb.master_cloud
 glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
 
 # Query for all active images
-images_query = "select images.id, images.name as image_name, size, is_public, tenant.name as tenant_name from glance.images inner join keystone.tenant on keystone.tenant.id=glance.images.owner where glance.images.status = 'active' order by tenant.name"
+images_query = "select images.id, images.name as image_name, size, is_public, project.name as tenant_name from glance.images inner join keystone.project on keystone.project.id=glance.images.owner where glance.images.status = 'active' order by project.name"
   
 images_rs = glance.query images_query
 images_rs.each_hash do |row|

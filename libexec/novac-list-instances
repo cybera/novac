@@ -36,7 +36,7 @@ novadb.clouds.each do |region, creds|
   
     # Prepared statements
     user_query    = keystone.prepare "select name from user where id = ?"
-    project_query = keystone.prepare "select name from tenant where id = ?"
+    project_query = keystone.prepare "select name from project where id = ?"
     image_query   = glance.prepare "select name from images where id = ?"
     ec2_query     = nova.prepare "select id from instance_id_mappings where uuid = ?"
   

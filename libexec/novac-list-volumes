@@ -48,7 +48,7 @@ novadb.clouds.each do |region, creds|
       end
 
       # Get the project name
-      project_rs = keystone.query "select name from tenant where id = '#{row['project_id']}'"
+      project_rs = keystone.query "select name from project where id = '#{row['project_id']}'"
       project = project_rs.fetch_hash['name']
 
       # Build the output row

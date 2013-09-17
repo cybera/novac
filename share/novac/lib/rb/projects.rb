@@ -21,7 +21,7 @@ class Projects
       keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
 
       # Get the id and name of all projects 
-      project_rs = keystone.query "select id, name from tenant"
+      project_rs = keystone.query "select id, name from project"
       project_rs.each_hash do |row| 
         # Ignore services project
         next if row['name'] == 'services'
