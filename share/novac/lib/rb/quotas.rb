@@ -188,7 +188,7 @@ class Quotas
           },
           :image_count => {
             :query => "select count(*) as images from images
-              where owner = '#{project_id}' and status != 'deleted'",
+              where owner = '#{project_id}' and (status != 'deleted' and status != 'killed')",
             :database => glance,
           },
           :object_mb_usage => {
@@ -276,7 +276,7 @@ class Quotas
             },
             :image_count => {
               :query => "select count(*) as images from images
-                where owner = '#{project_id}' and status != 'deleted'",
+                where owner = '#{project_id}' and (status != 'deleted' and status != 'killed')",
               :database => glance,
             },
             :object_mb_usage => {
