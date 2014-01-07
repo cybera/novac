@@ -69,7 +69,12 @@ x.each do |project_id, project_name|
     if total_usage[project_id].has_key?(resource)
       used = total_usage[project_id][resource]
     end
-    percent = ((used.to_f / limit.to_f) * 100).to_i
+    #Catch 0 or unlimited quota users
+    if limit.to_f > 0.0
+      percent = ((used.to_f / limit.to_f) * 100).to_i
+    else
+      percent = 0
+    end
     if percent > 100
       rows << [resource,used,limit,"#{percent} %"]
     end
