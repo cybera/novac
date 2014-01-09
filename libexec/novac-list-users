@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 
-# Usage: novac list-users <userID>
+# Usage: novac list-users [<userID>]
 # Summary: List all users, and their role with each associated project. (Helps locate 'admin' users). It hides our system users by default.
-# Help: The userID can be either a UUID for a user, or 'all' to list everything without hiding anything.
+# Help: <userID> is an optional argument. If specified it can either be a user's UUID or 'all' to not hide system users/roles.
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
