@@ -1,4 +1,9 @@
 #!/usr/bin/env ruby
+
+# Usage: novac list-users <userID>
+# Summary: List all users, and their role with each associated project. (Helps locate 'admin' users). It hides our system users by default.
+# Help: The userID can be either a UUID for a user, or 'all' to list everything without hiding anything.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
@@ -22,7 +27,14 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
+#Load Users and Projects
 users = Users.new
 
-# Need to add the ability to take arguments for: admin only and specific users
-users.list_user_roles(nil)
+# Was a user ID specified (ID or 'all')
+if ARGV[0]
+  user = ARGV[0]
+else
+  user = nil
+end
+
+users.list_user_roles(user)
