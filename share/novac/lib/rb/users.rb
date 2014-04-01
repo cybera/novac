@@ -58,7 +58,7 @@ def initialize
         ignore_user_list_sql << " AND `user_id` != '#{user}'"
       end
     elsif user_id == 'all' || @users[user_id] != nil
-	
+
     end
 
     ignore_role_list = [] # Create when reading the roles
@@ -81,13 +81,13 @@ def initialize
           @roles[row['id']] = row['name']
       end
 
-      #SQL Query - no joins since we already have pulled the associated tables for other operations (users, projects, roles)
+      #SQL Query - no joins since we already have pulled the associated tables by instantiating other classes (users, projects, roles)
       if user_id == 'all'
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata"
       elsif user_id != nil
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE user_id = '#{user_id}' LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE user_id = '#{user_id}'"
       else
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE `user_id` != '0' #{ignore_user_list_sql} LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE `user_id` != '0' #{ignore_user_list_sql}"
       end
 
 
@@ -108,11 +108,11 @@ def initialize
     headings = ['ID', 'Username', 'Project/Tenant', 'Role']
     if user_id == 'all'
       rows = rows.sort_by {|e| e[3]}
-      puts 'All users - sorted by Role'
+      puts 'Showing all users - sorted by Role'
     else
       rows = rows.sort_by {|e| [e[3],e[2]]}
       if user_id == nil
-          puts 'Non Sysytem Users - sorted by Role, then Project'
+          puts 'Showing all non System Users - sorted by Role, then Project'
       end
     end
 
