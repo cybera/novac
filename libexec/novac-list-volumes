@@ -53,8 +53,12 @@ novadb.regions.each do |region|
 
       # Get the project name
       project_rs = keystone.query "select name from project where id = '#{row['project_id']}'"
-      project = project_rs.fetch_hash['name']
-
+      begin
+        project = project_rs.fetch_hash['name']
+      rescue
+        puts "WARNING. The following volume is not associated with an existing project: #{row['id']}"
+        project = "z WARNING: PROJECT DOES NOT EXIST"
+      end
       # Build the output row
       if not rows.has_key?(project)
         rows[project] = []
