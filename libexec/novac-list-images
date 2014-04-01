@@ -31,7 +31,7 @@ glance = Mysql.new master[:server], master[:username], master[:password], 'glanc
 
 # Query for all active images
 images_query = "select images.id, images.name as image_name, size, is_public, project.name as tenant_name from glance.images inner join keystone.project on keystone.project.id=glance.images.owner where glance.images.status = 'active' order by project.name"
-  
+
 images_rs = glance.query images_query
 images_rs.each_hash do |row|
 
@@ -75,7 +75,7 @@ images_rs.each_hash do |row|
   # Build the output row
   rows << [images_id_short, row['image_name'], row['tenant_name'], is_snapshot, base_image_name, size, is_public]
 end
-  
+
 # Print report
 headings = ['ID', 'Name', 'Owner', 'Snapshot', 'Base Image', 'Size (GB)', 'Public']
 
