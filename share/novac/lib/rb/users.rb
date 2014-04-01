@@ -81,7 +81,7 @@ class Users
           @roles[row['id']] = row['name']
       end
 
-      #SQL Query - no joins since we already have pulled the associated tables for other operations (users, projects, roles)
+      #SQL Query - no joins since we already have pulled the associated tables by instantiating other classes (users, projects, roles)
       if user_id == 'all'
         roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata"
       elsif user_id != nil
@@ -118,11 +118,11 @@ class Users
     headings = ['ID', 'Username', 'Project/Tenant', 'Role']
     if user_id == 'all'
       rows = rows.sort_by {|e| e[3]}
-      puts 'All users - sorted by Role'
+      puts 'Showing all users - sorted by Role'
     else
       rows = rows.sort_by {|e| [e[3],e[2]]}
       if user_id == nil
-          puts 'Non Sysytem Users - sorted by Role, then Project'
+          puts 'Showing all non System Users - sorted by Role, then Project'
       end
     end
 
