@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+
+# List of required libraries
+required_libs = ['terminal-table','mysql']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Get a list of clouds
+novadb = NovaDB.new
+clouds = novadb.clouds
+
+rows = []
+master = novadb.master_cloud
+novadb.clouds.each do |region, creds|
+  begin
+    # Databases
+    nova     = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+    keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+
+    # Prepared statements
+    project_query = keystone.prepare "select name from project where id = ?"
+
+    # Query for all active security groups
+    secgroup_query = "SELECT `from_port`, `to_port`, `cidr`, `project_id` FROM security_group_rules INNER JOIN security_groups ON security_groups.id=security_group_rules.parent_group_id WHERE security_group_rules.deleted = 0 AND security_group_rules.cidr LIKE '%0.0.0.0%' AND security_group_rules.from_port != -1;"
+
+    secgroup_rs = nova.query secgroup_query
+    secgroup_rs.each_hash do |row|
+      # Project name
+      project_query.execute row['project_id']
+      project = project_query.fetch[0]
+
+      # Build the output row
+      #rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], row['key_name'], image]
+      rows << [ project, row['from_port'], row['to_port'], row['cidr'] ]
+    end
+  ensure
+#    nova.close if nova
+    keystone.close if keystone
+    project_query.close if project_query
+    #secgroup_query.close if secgroup_query
+  end
+end
+
+# Print report
+headings = [ 'Project', 'Start Port', 'End Port', 'CIDR' ]
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+
