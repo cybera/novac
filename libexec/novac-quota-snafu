@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+
+# Usage: novac quota-snafu
+# Summary: Lists all users who have exceeded their quota. Very similar to novac quota-report.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

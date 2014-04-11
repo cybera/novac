@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Usage: novac swift-set-quota <project> <quota in bytes>
+# Summary: Sets a user's swift quota
+# Help: Set a project's swift quota to the quota in bytes. Both the <project> and <quota in bytes> are required
+
 if [ "$1" = "" -o "$2" = "" ]; then
   echo "Usage: novac swift-quota-set <project> <quota in bytes>"
   exit 1

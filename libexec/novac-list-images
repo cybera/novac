@@ -1,8 +1,7 @@
 #!/usr/bin/env ruby
-
 # Usage: novac list-images
-# Summary: List all images
-# Help: novac list-images
+# Summary: List all images and snapshots
+# Help: Lists all images and snapshots on DAIR
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
