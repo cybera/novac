@@ -14,12 +14,8 @@ end
 
 # Windows Image Information
 IMAGES = {
-  '2ebc4c91-8b3d-472d-9189-6faabcd9e5e2' => 'Windows 2012',
-  'fffee34c-d3d0-47a0-9716-47ce16244769' => 'Windows 7',
-  '7eecedab-5123-422d-b766-1d513b45396e' => 'Windows 2008 R2',
-  '0decc679-e437-487f-8077-3c89b32fae58' => 'Windows 2008 R2',
-  '87ef156c-de7f-4760-ae1f-2f04d041728e' => 'Windows 2008 R2',
-  '086f3cec-4921-4df2-a681-aeea7e09e5b5' => 'Windows 2008 R2',
+  '79f01306-8ea4-40d5-972e-6c78247009a6' => 'Windows Server 2012 R2',
+  'a9e4eb3a-aba1-4a87-b455-b780f888d20b' => 'Windows Server 2008 R2',
 }
 
 # Parse the command-line arguments
@@ -51,10 +47,10 @@ end_date += 86399
 tenants = {}
 projects = Projects.new
 novadb = NovaDB.new
-master = novadb.master_cloud
-novadb.clouds.each do |region,creds|
-  nova   = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
-  glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+cloud = novadb.cloud
+novadb.regions.each do |region|
+  nova   = Mysql.new cloud[:server], cloud[:username], cloud[:password], "nova_#{region}"
+  glance = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'glance'
   # Query for all instances launched after Jan 1 2013
   event_rs = nova.query "select * from instances where date(created_at) >= '#{jan1_date}' order by created_at"
   event_rs.each_hash do |row|

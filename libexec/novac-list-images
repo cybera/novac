@@ -1,4 +1,9 @@
 #!/usr/bin/env ruby
+
+# Usage: novac list-images
+# Summary: List all images
+# Help: novac list-images
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
@@ -25,13 +30,13 @@ end
 novadb = NovaDB.new
 
 rows = []
-master = novadb.master_cloud
+cloud = novadb.cloud
 # Database
-glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+glance = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'glance'
 
 # Query for all active images
 images_query = "select images.id, images.name as image_name, size, is_public, project.name as tenant_name from glance.images inner join keystone.project on keystone.project.id=glance.images.owner where glance.images.status = 'active' order by project.name"
-  
+
 images_rs = glance.query images_query
 images_rs.each_hash do |row|
 
@@ -75,7 +80,7 @@ images_rs.each_hash do |row|
   # Build the output row
   rows << [images_id_short, row['image_name'], row['tenant_name'], is_snapshot, base_image_name, size, is_public]
 end
-  
+
 # Print report
 headings = ['ID', 'Name', 'Owner', 'Snapshot', 'Base Image', 'Size (GB)', 'Public']
 

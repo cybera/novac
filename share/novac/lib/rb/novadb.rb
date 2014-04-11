@@ -1,29 +1,26 @@
 class NovaDB
-  attr_accessor :clouds, :master_cloud, :queues
+  attr_accessor :cloud, :regions, :queues
   def initialize
     # A .mysqlrc file is a custom rc file that contains entries of
     # all databases in all clouds that are being controlled.
     # Each database's nova table is queried for running instances.
     # If no .mysqlrc file is found, .my.cnf is used for a single-
     # cloud install
-    @clouds = {}
-    @master_cloud = {}
+    @regions = []
+    @cloud = {}
     @queues = {}
     if File.exists?('/root/.mysqlrc')
       File.open('/root/.mysqlrc').each do |line|
         region, server, username, password, comment = line.strip.split(',')
-        if comment == 'master'
-          @master_cloud = {
+        my_fqdn = `facter fqdn`.chomp
+        if comment == my_fqdn
+          @cloud = {
             :username => username,
             :password => password,
             :server   => server
           }
         end
-        @clouds[region] = {
-          :username => username,
-          :password => password,
-          :server   => server
-        }
+        @regions << region
       end
     elsif File.exists?('/root/.my.cnf')
       @clouds[:nova] = {}

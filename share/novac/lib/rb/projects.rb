@@ -15,17 +15,17 @@ class Projects
 
   def initialize
     novadb = NovaDB.new
-    master = novadb.master_cloud
+    cloud = novadb.cloud
     @projects = {}
     begin
-      keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
 
-      # Get the id and name of all projects 
+      # Get the id and name of all projects
       project_rs = keystone.query "select id, name from project"
-      project_rs.each_hash do |row| 
+      project_rs.each_hash do |row|
         # Ignore services project
         next if row['name'] == 'services'
-        # Give each project a default quota 
+        # Give each project a default quota
         @projects[row['id']] = row['name']
       end
     ensure

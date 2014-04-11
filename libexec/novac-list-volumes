@@ -25,16 +25,16 @@ end
 novadb = NovaDB.new
 
 rows = {}
-master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
+cloud = novadb.cloud
+novadb.regions.each do |region|
   begin
     # Databases
-    cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
-    keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
-  
+    cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], "cinder_#{region}"
+    keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+
     # Query for all active volumes
-    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status" 
-  
+    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova_#{region}.instances on cinder_#{region}.volumes.instance_uuid=nova_#{region}.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status"
+
     volumes_rs = cinder.query volumes_query
     volumes_rs.each_hash do |row|
       # Shorten the Instance ID
@@ -62,7 +62,7 @@ novadb.clouds.each do |region, creds|
     keystone.close if keystone
   end
 end
-  
+
 # Print report
 headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mountpoint', 'Size (GB)', 'Host', 'Region']
 
