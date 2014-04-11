@@ -1,4 +1,9 @@
 #!/usr/bin/env ruby
+# Usage: novac secgroup-list [pattern]
+# Summary: List all Security Group Rules (except ping)
+# Help: Pattern is an optional parameter to filter the group list.
+# eg. novac secgroup-list 0.0.0.0 will show all rules that are open to the world.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

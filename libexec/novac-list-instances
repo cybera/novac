@@ -1,4 +1,10 @@
 #!/usr/bin/env ruby
+
+# Usage: novac list-instances
+# Summary: List all instances on both regions
+# Help: This command shows the ID, Project, State, User, Region, Name, Host, IPv4, Flavor, Key, and Image
+
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

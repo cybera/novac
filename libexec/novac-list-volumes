@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# Usage: novac list-volumes
+# Summary: List all volumes in both regions
+# Help: This command shows the ID, Name, Project, Status, Attach, Instance, Mountpoint, Size, Host, and Region
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# Usage: novac quota-balance
+# # Summary: Balance quotas between regions. This is normally run by cron.
+# # Help: novac balance-quotas
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

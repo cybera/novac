@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# Usage: novac quota-cron
+# # Summary: Cron Helper Script to call novac quota-balance and then catch a corner case of when they exceed their quota. This should not be run manually
+# # Help: Cron Helper Script. Should not be run manually.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'

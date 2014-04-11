@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# Usage: novac quota-report [projectID]
+# Summary: Displays the Quota and Usage for every project or a sepcified project
+# Help: Optional argument: <projectID> may be specified for just one project.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
