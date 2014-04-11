@@ -6,12 +6,13 @@ class NovaDB
     # Each database's nova table is queried for running instances.
     # If no .mysqlrc file is found, .my.cnf is used for a single-
     # cloud install
-    @regions = []
+    r = {}
     @cloud = {}
     @queues = {}
     if File.exists?('/root/.mysqlrc')
       File.open('/root/.mysqlrc').each do |line|
         region, server, username, password, comment = line.strip.split(',')
+        r[region] = 1
         my_fqdn = `facter fqdn`.chomp
         if comment == my_fqdn
           @cloud = {
@@ -20,8 +21,8 @@ class NovaDB
             :server   => server
           }
         end
-        @regions << region
       end
+      @regions = r.keys
     elsif File.exists?('/root/.my.cnf')
       @clouds[:nova] = {}
       @clouds[:nova][:server] = 'localhost'

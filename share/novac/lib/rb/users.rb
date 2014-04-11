@@ -14,12 +14,12 @@ end
 class Users
 
   attr_accessor :users
-def initialize
+  def initialize
     novadb = NovaDB.new
-    master = novadb.master_cloud
+    cloud = novadb.cloud
     @users = {}
     begin
-      keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
 
       # Get the id and name of all users
       user_rs = keystone.query "select id, name from user"
@@ -58,16 +58,16 @@ def initialize
         ignore_user_list_sql << " AND `user_id` != '#{user}'"
       end
     elsif user_id == 'all' || @users[user_id] != nil
-	
+
     end
 
     ignore_role_list = [] # Create when reading the roles
 
     novadb = NovaDB.new
-    master = novadb.master_cloud
+    cloud = novadb.cloud
     rows = []
     begin
-      keystone = Mysql.new master[:server], master[:username], master[:password], 'keystone'
+      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
 
       projects = Projects.new
       @roles = {}
@@ -83,11 +83,11 @@ def initialize
 
       #SQL Query - no joins since we already have pulled the associated tables for other operations (users, projects, roles)
       if user_id == 'all'
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata"
       elsif user_id != nil
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE user_id = '#{user_id}' LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE user_id = '#{user_id}'"
       else
-        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE `user_id` != '0' #{ignore_user_list_sql} LIMIT 5"
+        roles_rs = keystone.query "select user_id, project_id, data from user_project_metadata WHERE `user_id` != '0' #{ignore_user_list_sql}"
       end
 
 
@@ -97,7 +97,17 @@ def initialize
         role_data = JSON.parse(row['data'])
         role_data["roles"].each do |role_row|
           next if user_id == nil && role_row == ignore_role_list[0]
-          rows << [row['user_id'], @users[row['user_id']], projects.projects[row['project_id']], @roles[role_row]]
+          if not @roles[role_row]
+            role = 'none'
+          else
+            role = @roles[role_row]
+          end
+          if not projects.projects[row['project_id']]
+            project = 'none'
+          else
+            project = projects.projects[row['project_id']]
+          end
+          rows << [row['user_id'], @users[row['user_id']], project, role]
         end
       end
 
