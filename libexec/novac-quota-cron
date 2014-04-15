@@ -8,6 +8,7 @@ require 'rubygems'
 require 'novadb'
 require 'quotas'
 require 'projects'
+require 'parallel'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -23,7 +24,8 @@ system("#{novac} quota-balance")
 # Loop through all projects and see what users are over quota and what users aren't.
 projects = Projects.new
 quotas = Quotas.new
-projects.project_ids.each do |project_id|
+
+Parallel.each(projects.project_ids, :in_processes => 12) do |project_id|
   project = projects.projects[project_id]
   next if project == 'admin'
   limit = Integer(quotas.project_quota(project_id)['object_mb'])
@@ -37,5 +39,6 @@ projects.project_ids.each do |project_id|
     quota_in_bytes = limit * 1024 * 1024
     command = "\"#{project}\" #{quota_in_bytes}"
   end
+
   system("#{novac} swift-set-quota #{command}")
 end
