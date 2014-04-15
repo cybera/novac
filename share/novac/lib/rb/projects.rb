@@ -1,7 +1,7 @@
 require 'novadb'
 
 # required libs
-required_libs = ['mysql']
+required_libs = ['mysql2']
 begin
   required_libs.each { |l| require l }
 rescue LoadError
@@ -18,11 +18,11 @@ class Projects
     cloud = novadb.cloud
     @projects = {}
     begin
-      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone' )
 
       # Get the id and name of all projects
       project_rs = keystone.query "select id, name from project"
-      project_rs.each_hash do |row|
+      project_rs.each do |row|
         # Ignore services project
         next if row['name'] == 'services'
         # Give each project a default quota

@@ -8,7 +8,7 @@ require 'rubygems'
 require 'novadb'
 
 # List of required libraries
-required_libs = ['terminal-table','mysql']
+required_libs = ['terminal-table','mysql2']
 
 # Try to load each of the libraries
 # Fail if unable to and list what libs are needed
@@ -33,14 +33,14 @@ cloud = novadb.cloud
 novadb.regions.each do |region|
   begin
     # Databases
-    cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], "cinder_#{region}"
-    keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+    cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder_#{region}' )
+    keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone' )
 
     # Query for all active volumes
     volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova_#{region}.instances on cinder_#{region}.volumes.instance_uuid=nova_#{region}.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status"
 
     volumes_rs = cinder.query volumes_query
-    volumes_rs.each_hash do |row|
+    volumes_rs.each do |row|
       # Shorten the Instance ID
       volume_id_short = row['id'].split('-')[0]
 
@@ -54,7 +54,7 @@ novadb.regions.each do |region|
       # Get the project name
       project_rs = keystone.query "select name from project where id = '#{row['project_id']}'"
       begin
-        project = project_rs.fetch_hash['name']
+        project = project_rs.first['name']
       rescue
         puts "WARNING. The following volume is not associated with an existing project: #{row['id']}"
         project = "z WARNING: PROJECT DOES NOT EXIST"
@@ -65,9 +65,6 @@ novadb.regions.each do |region|
       end
       rows[project] << [volume_id_short, row['volume'], project, row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size'], host, region]
     end
-  ensure
-    cinder.close if cinder
-    keystone.close if keystone
   end
 end
 

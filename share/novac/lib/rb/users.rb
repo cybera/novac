@@ -19,11 +19,12 @@ class Users
     cloud = novadb.cloud
     @users = {}
     begin
-      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      #keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      keystone = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone')
 
       # Get the id and name of all users
       user_rs = keystone.query "select id, name from user"
-      user_rs.each_hash do |row|
+      user_rs.each do |row|
         @users[row['id']] = row['name']
       end
     ensure
@@ -67,13 +68,14 @@ class Users
     cloud = novadb.cloud
     rows = []
     begin
-      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      #keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone')
 
       projects = Projects.new
       @roles = {}
 
       role_rs = keystone.query "select id, name from role"
-      role_rs.each_hash do |row|
+      role_rs.each do |row|
           #Add _member_ id to ignore list
           if row['name'] == '_member_' && user_id == nil
             ignore_role_list << row['id']
@@ -92,7 +94,7 @@ class Users
 
 
       #Obtain User Role Information
-      roles_rs.each_hash do |row|
+      roles_rs.each do |row|
         #Split up data section
         role_data = JSON.parse(row['data'])
         role_data["roles"].each do |role_row|
@@ -111,8 +113,6 @@ class Users
         end
       end
 
-    ensure
-      keystone.close if keystone
     end
 
     headings = ['ID', 'Username', 'Project/Tenant', 'Role']

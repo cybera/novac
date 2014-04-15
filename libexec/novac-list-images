@@ -8,7 +8,7 @@ require 'rubygems'
 require 'novadb'
 
 # List of required libraries
-required_libs = ['terminal-table','mysql']
+required_libs = ['terminal-table','mysql2']
 
 # Try to load each of the libraries
 # Fail if unable to and list what libs are needed
@@ -31,20 +31,21 @@ novadb = NovaDB.new
 rows = []
 cloud = novadb.cloud
 # Database
-glance = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'glance'
+#glance = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'glance'
+glance = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'glance')
 
 # Query for all active images
 images_query = "select images.id, images.name as image_name, size, is_public, project.name as tenant_name from glance.images inner join keystone.project on keystone.project.id=glance.images.owner where glance.images.status = 'active' order by project.name"
 
-images_rs = glance.query images_query
-images_rs.each_hash do |row|
+images_rs = glance.query(images_query)
+images_rs.each(:as => :hash) do |row|
 
   # Get some extra data about the image
   base_image_ref = nil
   is_snapshot = 'No'
   image_query = "select name, value from image_properties where image_id = '#{row['id']}'"
-  image_rs = glance.query image_query
-  image_rs.each_hash do |image_row|
+  image_rs = glance.query(image_query)
+  image_rs.each do |image_row|
     case image_row['name']
     when 'image_location'
       if image_row['value'] == 'snapshot'
@@ -71,7 +72,7 @@ images_rs.each_hash do |row|
   # Get the base image
   if base_image_ref
     base_query = glance.query "select name from images where id = '#{base_image_ref}'"
-    base_image_name = base_query.fetch_hash['name']
+    base_image_name = base_query.each(:as => :hash).first['name']
   else
     base_image_name = nil
   end
