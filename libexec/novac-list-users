@@ -10,7 +10,7 @@ require 'novadb'
 require 'projects'
 require 'users'
 
-required_libs = ['terminal-table','mysql']
+required_libs = ['terminal-table','mysql2']
 
 # Try to load each of the libraries
 # Fail if unable to and list what libs are needed
