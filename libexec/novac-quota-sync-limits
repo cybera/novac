@@ -26,4 +26,4 @@ end
 # create quota object
 quotas = Quotas.new
 
-quotas.sync_all_limits
+quotas.sync_all_projects_limits

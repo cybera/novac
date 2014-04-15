@@ -31,6 +31,9 @@ logger = Logger.new('/var/log/nova/quotas.log')
 novadb = NovaDB.new
 queues = novadb.queues
 
+# Get my region
+my_region = `facter location`.chomp
+
 # Create a quota object
 quota = Quotas.new
 
@@ -49,38 +52,37 @@ EventMachine.error_handler do |e|
 end
 
 # Start the main event loop
-# This reads in all available rabbitmq servers,
-# connects to them, then monitors their monitor.*
+# This connects to the local rabbitmq server,
+# then monitors the notifications.*
 # topic for certain events triggered by nova
 begin
   EventMachine.run do
     logger.info('EventMachine started')
-    queues.each do |region, creds|
-      conn = AMQP.connect(creds)
-      ch   = AMQP::Channel.new(conn)
-      ex   = ch.topic('nova')
- 
-      logger.info("Monitoring nova.monitor.* on #{region}")
-      ch.queue('monitor').bind(ex, :routing_key => 'monitor.*').subscribe do |headers, payload|
-        p = JSON.parse(payload)
-        if p.has_key?('event_type')
-          event = p['event_type']
-          logger.info(event)
-          if events.include?(event)
-            logger.info("Caught event: #{event}")
-            if p.has_key?('payload')
-              project_id = nil 
-              if p['payload'].has_key?('tenant_id')
-                project_id = p['payload']['tenant_id']
-              elsif p['payload'].has_key?('project_id')
-                project_id = p['payload']['project_id']
-              elsif p['payload'].has_key?('owner')
-                project_id = p['payload']['owner']
-              end
-              if project_id
-                logger.info("Balancing quotas for #{project_id}")
-                quota.balance_quotas(project_id)
-              end
+    conn = AMQP.connect(queues[my_region])
+    ch   = AMQP::Channel.new(conn)
+    ex   = ch.topic('nova')
+
+    logger.info("Monitoring novac.notifications.* on #{my_region}")
+    ch.queue('novac.info').bind(ex, :routing_key => 'notifications.*').subscribe do |headers, payload|
+      p = JSON.parse(payload)
+      if p.has_key?('event_type')
+        event = p['event_type']
+        logger.info(event)
+        if events.include?(event)
+          logger.info("Caught event: #{event}")
+          if p.has_key?('payload')
+            project_id = nil
+            if p['payload'].has_key?('tenant_id')
+              project_id = p['payload']['tenant_id']
+            elsif p['payload'].has_key?('project_id')
+              project_id = p['payload']['project_id']
+            elsif p['payload'].has_key?('owner')
+              project_id = p['payload']['owner']
+            end
+            if project_id
+              logger.info("Balancing quotas for #{project_id}")
+              sleep 1
+              quota.balance_quotas(project_id)
             end
           end
         end

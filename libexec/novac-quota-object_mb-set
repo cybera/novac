@@ -13,4 +13,4 @@ puts limit
 
 quotas = Quotas.new
 
-quotas.set_project_quota_limit_in_all_regions(project_id, 'object_mb', limit)
+quotas.set_project_limit_in_all_regions(project_id, 'object_mb', limit)

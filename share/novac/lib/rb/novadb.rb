@@ -1,5 +1,5 @@
 class NovaDB
-  attr_accessor :cloud, :regions, :queues
+  attr_accessor :cloud, :regions, :queues, :master_region
   def initialize
     # A .mysqlrc file is a custom rc file that contains entries of
     # all databases in all clouds that are being controlled.
@@ -9,17 +9,21 @@ class NovaDB
     r = {}
     @cloud = {}
     @queues = {}
+    @master_region = nil
     if File.exists?('/root/.mysqlrc')
       File.open('/root/.mysqlrc').each do |line|
-        region, server, username, password, comment = line.strip.split(',')
+        region, server, username, password, fqdn, comment = line.strip.split(',')
         r[region] = 1
         my_fqdn = `facter fqdn`.chomp
-        if comment == my_fqdn
+        if fqdn == my_fqdn
           @cloud = {
             :username => username,
             :password => password,
             :server   => server
           }
+        end
+        if comment == 'master'
+          @master_region = region
         end
       end
       @regions = r.keys
@@ -42,12 +46,18 @@ class NovaDB
 
     if File.exists?('/root/.rabbitmqrc')
       File.open('/root/.rabbitmqrc').each do |line|
-        region, server, username, password, comment = line.strip.split(',')
-        @queues[region] = {}
+        region, server, username, password, fqdn, comment = line.strip.split(',')
+
+        if not @queues.has_key?(region)
+          @queues[region] = {}
+        end
+
         @queues[region] = {
           :host     => server,
+          :port     => 5673,
           :username => username,
-          :password => password
+          :password => password,
+          :vhost => 'openstack'
         }
       end
     end
