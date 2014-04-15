@@ -59,7 +59,7 @@ begin
       conn = AMQP.connect(creds)
       ch   = AMQP::Channel.new(conn)
       ex   = ch.topic('nova')
- 
+
       logger.info("Monitoring nova.monitor.* on #{region}")
       ch.queue('monitor').bind(ex, :routing_key => 'monitor.*').subscribe do |headers, payload|
         p = JSON.parse(payload)
@@ -69,7 +69,7 @@ begin
           if events.include?(event)
             logger.info("Caught event: #{event}")
             if p.has_key?('payload')
-              project_id = nil 
+              project_id = nil
               if p['payload'].has_key?('tenant_id')
                 project_id = p['payload']['tenant_id']
               elsif p['payload'].has_key?('project_id')
