@@ -2,7 +2,7 @@ require 'novadb'
 require 'projects'
 
 # required libs
-required_libs = ['mysql2']
+required_libs = ['mysql']
 begin
   required_libs.each { |l| require l}
 rescue LoadError
@@ -44,8 +44,8 @@ class Quotas
       master = @novadb.master_cloud
 
       # Connect to the nova database on the master cloud's db
-      nova = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'nova' )
-      cinder = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'cinder' )
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+      cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
       quota = @defaults.clone
 
       # Query for the quota for the certain project
@@ -53,14 +53,14 @@ class Quotas
       quota_rs = nova.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
 
       # Build a quota that is a combination of default + project quota
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         quota[row['resource']] = row['hard_limit']
       end
 
       # Query for Volume / Block Storage quotas
       quota_rs = cinder.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
 
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         quota[row['resource']] = row['hard_limit']
       end
 
@@ -69,7 +69,7 @@ class Quotas
 
     ensure
       nova.close if nova
-      cinder.close if cinder
+      cinder.close if nova
     end
   end
 
@@ -82,28 +82,28 @@ class Quotas
       master = @novadb.master_cloud
 
       # Connect to the nova database on the master cloud's db
-      nova = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'nova' )
-      cinder = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'cinder' )
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+      cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
 
       # Query for the non-default quota items in the project
       # All but Volumes / Block Storage
       quota_rs = nova.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
 
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         quota[row['resource']] = row['hard_limit']
       end
 
       # Query for Volume / Block Storage quotas
       quota_rs = cinder.query "select resource, hard_limit from quotas where project_id = '#{project_id}'"
 
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         quota[row['resource']] = row['hard_limit']
       end
 
     quota
     ensure
       nova.close if nova
-      cinder.close if cinder
+      cinder.close if nova
     end
   end
 
@@ -115,8 +115,8 @@ class Quotas
       master = @novadb.master_cloud
 
       # Connect to the nova database on the master cloud's db
-      nova = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'nova' )
-      cinder = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'cinder' )
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
+      cinder = Mysql.new master[:server], master[:username], master[:password], 'cinder'
       quota = @defaults.clone
 
       # Query for the quota for the certain project
@@ -124,14 +124,14 @@ class Quotas
       quota_rs = nova.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
 
       # Build a quota that is a combination of default + project quota
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         resources[row['resource']] = row['in_use']
       end
 
       # Query for Volume / Block Storage quotas
       quota_rs = cinder.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
 
-      quota_rs.each do |row|
+      quota_rs.each_hash do |row|
         quota[row['resource']] = row['in_use']
       end
 
@@ -139,7 +139,7 @@ class Quotas
       resources
     ensure
       nova.close if nova
-      cinder.close if cinder
+      cinder.close if nova
     end
   end
 
@@ -151,9 +151,9 @@ class Quotas
     @novadb.clouds.each do |region, creds|
       begin
         # Connect to nova database of the current cloud
-        nova = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
-        glance = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'glance' )
+        nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+        cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
+        glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
       rescue
         next
       end
@@ -203,7 +203,7 @@ class Quotas
           q = query_info[:query]
           database = query_info[:database]
           rs = database.query q
-          usage = rs.first
+          usage = rs.fetch_hash
           if usage
             usage.each do |column, value|
               next if value.to_i < 0
@@ -233,9 +233,9 @@ class Quotas
     @novadb.clouds.each do |region, creds|
       begin
         # Connect to nova database of the current cloud
-        nova = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
-        glance = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'glance' )
+        nova = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
+        cinder = Mysql.new creds[:server], creds[:username], creds[:password], 'cinder'
+        glance = Mysql.new creds[:server], creds[:username], creds[:password], 'glance'
       rescue
         next
       end
@@ -291,7 +291,7 @@ class Quotas
             q = query_info[:query]
             database = query_info[:database]
             rs = database.query q
-            usage = rs.first
+            usage = rs.fetch_hash
             if usage
               usage.each do |column, value|
                 next if value.to_i < 0
@@ -322,14 +322,14 @@ class Quotas
       master = @novadb.master_cloud
 
       # Connect to the nova database on the master cloud's db
-      nova = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'nova' )
+      nova = Mysql.new master[:server], master[:username], master[:password], 'nova'
 
       # These queries are used to manually calculate the resources
       query = "select in_use as object_mb from quota_usages
               where project_id = '#{project_id}' and resource = 'object_mb'"
 
       rs = nova.query query
-      usage = rs.first
+      usage = rs.fetch_hash
       if usage
         usage.each do |column, value|
           next if value.to_i < 0
@@ -385,36 +385,35 @@ class Quotas
   def set_project_quota_limit(project_id, region, resource, limit)
     cloud = @novadb.clouds[region]
     begin
-      nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-      cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
+      nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
+      cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'cinder'
 
-      #Since Mysql2 doesn't support prepared statement - create full fledged statements first. Creates extra ifs.
-      update = "update quotas set hard_limit = '#{limit}' where resource = '#{resource}' and project_id = '#{project_id}'"
-      insert = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, '#{project_id}', '#{resource}', '#{limit}')"
+      # Update statement
+      update_query = "update quotas set hard_limit = ? where resource = ? and project_id = ?"
+      # Insert statement
+      insert_query = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, ?, ?, ?)"
 
       if resource == 'volumes' or resource == 'gigabytes'
         quota_rs = cinder.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
+        update = cinder.prepare update_query
+        insert = cinder.prepare insert_query
       else
         quota_rs = nova.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
+        update = nova.prepare update_query
+        insert = nova.prepare insert_query
       end
 
-      count = quota_rs.first
+      count = quota_rs.fetch_hash
       if count['c'].to_i == 1
-        if resource == 'volumes' or resource == 'gigabytes'
-          cinder.query update
-        else
-          nova.query update
-        end
+        update.execute limit, resource, project_id
       elsif count['c'].to_i == 0
-        if resource == 'volumes' or resource == 'gigabytes'
-          cinder.query insert
-        else
-          nova.query insert
-        end
+        insert.execute project_id, resource, limit
       else
         throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count['c']} entries for #{resource}"
       end
     ensure
+      update.close if update
+      insert.close if insert
       nova.close if nova
       cinder.close if nova
     end
@@ -426,36 +425,35 @@ class Quotas
     clouds.each do |region, creds|
       cloud = @novadb.clouds[region]
       begin
-        nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
+        nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
+        cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'cinder'
+
+        # query templates
+        update_query = "update quotas set hard_limit = ? where resource = ? and project_id = ?"
+        insert_query = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, ?, ?, ?)"
 
         projects = Projects.new
         projects.project_ids.each do |project_id|
           limits = project_quota_limits(project_id)
           limits.each do |resource, limit|
-            #query templates
-            update = "update quotas set hard_limit = '#{limit}' where resource = '#{resource}' and project_id = '#{project_id}'"
-            insert = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, '#{project_id}', '#{resource}', '#{limit}')"
 
             if resource == 'volumes' or resource == 'gigabytes'
               quota_rs = cinder.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
+              update = cinder.prepare update_query
+              insert = cinder.prepare insert_query
             else
               quota_rs = nova.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
+              update = nova.prepare update_query
+              insert = nova.prepare insert_query
             end
 
-            count = quota_rs.first
+            count = quota_rs.fetch_hash
             if count['c'].to_i == 1
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query update
-              else
-                nova.query update
-              end
+              # Update statement
+              update.execute limit, resource, project_id
             elsif count['c'].to_i == 0
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query insert
-              else
-                nova.query insert
-              end
+              # Insert statement
+              insert.execute project_id, resource, limit
             else
               throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count['c']} entries for #{resource}"
             end
@@ -463,7 +461,7 @@ class Quotas
         end
       ensure
         nova.close if nova
-        cinder.close if cinder
+        cinder.close if nova
       end
     end
   end
@@ -473,40 +471,43 @@ class Quotas
     clouds.each do |region, creds|
       cloud = @novadb.clouds[region]
       begin
-        nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
+        nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
+        cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'cinder'
+
+        # Query templates
+        update_query = "update quota_usages set in_use = ? where resource = ? and project_id = ?"
+        insert_query = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
+
         total_usage.each do |project_id, used|
           used.each do |resource, in_use|
-            # Query templates
-            update = "update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"
-            insert = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),'#{project_id}','#{resource}','#{in_use}',0,0)"
-
             if resource == 'volumes' or resource == 'gigabytes'
               quota_rs = cinder.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
+              update = cinder.prepare update_query
+              insert = cinder.prepare insert_query
             else
               quota_rs = nova.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
+              update = nova.prepare update_query
+              insert = nova.prepare insert_query
             end
-            count = quota_rs.first
+            count = quota_rs.fetch_hash
             if count['c'].to_i == 1
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query update
-              else
-                nova.query update
-              end
+              # Update
+              update.execute in_use, resource, project_id
             elsif count['c'].to_i == 0
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query insert
-              else
-                nova.query insert
+              unless in_use == 0
+                # Insert
+                insert.execute project_id, resource, in_use
               end
             else
               throw "Unable to update #{resource} to #{in_use}. #{project_id} has #{count['c']} entries for #{resource}"
             end
+            update.close if update
+            insert.close if insert
           end
         end
       ensure
         nova.close if nova
-        cinder.close if cinder
+        cinder.close if nova
       end
     end
   end
@@ -514,40 +515,40 @@ class Quotas
   def set_used(project_id, region, resource, in_use)
     cloud = @novadb.clouds[region]
     begin
-      nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-      cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
+      nova = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'nova'
+      cinder = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'cinder'
 
       # Query templates
-      update = "update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"
-      insert = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),'#{project_id}','#{resources}','#{in_use}',0,0)"
+      update_query = "update quota_usages set in_use = ? where resource = ? and project_id = ?"
+      insert_query = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),?,?,?,0,0)"
 
       if resource == 'volumes' or resource == 'gigabytes'
         quota_rs = cinder.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
+        update = cinder.prepare update_query
+        insert = cinder.prepare insert_query
       else
         quota_rs = nova.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
+        update = nova.prepare update_query
+        insert = nova.prepare insert_query
       end
 
-      count = quota_rs.first
+      count = quota_rs.fetch_hash
       if count['c'].to_i == 1
-        if resource == 'volumes' or resource == 'gigabytes'
-          cinder.query update
-        else
-          nova.query update
-        end
+        # Update
+        update.execute in_use, resource, project_id
       elsif count['c'].to_i == 0
         unless in_use == 0
-          if resource == 'volumes' or resource == 'gigabytes'
-            cinder.query insert
-          else
-            nova.query insert
-          end
+          # Insert
+          insert.execute project_id, resource, in_use
         end
       else
         throw "Unable to update #{resource} to #{in_use}. #{project_id} has #{count['c']} entries for #{resource}"
       end
     ensure
+      update.close if update
+      insert.close if insert
       nova.close if nova
-      cinder.close if cinder
+      cinder.close if nova
     end
   end
 end
