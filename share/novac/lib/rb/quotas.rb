@@ -188,12 +188,14 @@ class Quotas
         database = query_info[:database]
         rs = database.query q
         if rs
-          rs.each do |column, value|
-            next if value.to_i < 0
-            if resources.has_key?(column)
-              resources[column] += value.to_i
-            else
-              resources[column] = value.to_i
+          rs.each do |row|
+            row.each do |column, value|
+              next if value.to_i < 0
+              if resources.has_key?(column)
+                resources[column] += value.to_i
+              else
+                resources[column] = value.to_i
+              end
             end
           end
         end
@@ -243,12 +245,14 @@ class Quotas
         database = query_info[:database]
         rs = database.query q
         if rs
-          rs.each do |column, value|
-            next if value.to_i < 0
-            if resources.has_key?(column)
-              resources[column] += value.to_i
-            else
-              resources[column] = value.to_i
+          rs.each do |row|
+            row.each do |column, value|
+              next if value.to_i < 0
+              if resources.has_key?(column)
+                resources[column] += value.to_i
+              else
+                resources[column] = value.to_i
+              end
             end
           end
         end
