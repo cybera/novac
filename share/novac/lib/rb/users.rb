@@ -19,7 +19,6 @@ class Users
     cloud = novadb.cloud
     @users = {}
     begin
-      #keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
       keystone = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone')
 
       # Get the id and name of all users
@@ -82,6 +81,7 @@ class Users
           end
           @roles[row['id']] = row['name']
       end
+      cyberabot_id = keystone.query("select id from user where name = 'cyberabot'").first['id']
 
       #SQL Query - no joins since we already have pulled the associated tables by instantiating other classes (users, projects, roles)
       if user_id == 'all'
@@ -98,11 +98,11 @@ class Users
         #Split up data section
         role_data = JSON.parse(row['data'])
         role_data["roles"].each do |role_row|
-          next if user_id == nil && role_row == ignore_role_list[0]
-          if not @roles[role_row]
+          next if user_id == nil && role_row['id'] == ignore_role_list[0] || row['user_id'] == cyberabot_id
+          if not @roles[role_row['id']]
             role = 'none'
           else
-            role = @roles[role_row]
+            role = @roles[role_row['id']]
           end
           if not projects.projects[row['project_id']]
             project = 'none'
@@ -129,5 +129,6 @@ class Users
     #Sort rows
     table = Terminal::Table.new :headings => headings, :rows => rows
     puts table
+    puts "#{rows.length} Users"
   end
 end
