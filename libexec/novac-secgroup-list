@@ -34,15 +34,14 @@ end
 
 # Get a list of clouds
 novadb = NovaDB.new
-clouds = novadb.clouds
+cloud = novadb.cloud
 
 rows = []
-master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
+novadb.regions.each do |region|
   begin
     # Databases
-    nova     = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
-    keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
+    nova     = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => "nova_#{region}" )
+    keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone' )
 
     # Prepared statements
     #project_query = keystone.prepare "select name from project where id = ?"
