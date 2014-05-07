@@ -33,7 +33,7 @@ cloud = novadb.cloud
 novadb.regions.each do |region|
   begin
     # Databases
-    cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder_#{region}' )
+    cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => "cinder_#{region}" )
     keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone' )
 
     # Query for all active volumes
