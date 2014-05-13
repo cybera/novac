@@ -140,7 +140,6 @@ class Quotas
     cinder = @regions[@master_region]['cinder']
     quota = @defaults.clone
 
-<<<<<<< HEAD
     # Query for the quota for the certain project
     # For all but Block Storage
     quota_rs = nova.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"

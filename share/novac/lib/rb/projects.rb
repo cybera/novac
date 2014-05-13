@@ -38,11 +38,11 @@ class Projects
     cloud = novadb.cloud
     @users = {}
     begin
-      keystone = Mysql.new cloud[:server], cloud[:username], cloud[:password], 'keystone'
+      keystone = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone' )
 
       # Get all users in a certain project
       users_rs = keystone.query "select user_id, user.name as name from user_project_metadata inner join user on user_project_metadata.user_id=user.id where project_id = '#{project_id}'"
-      users_rs.each_hash do |row|
+      users_rs.each do |row|
         @users[row['user_id']] = row['name']
       end
       @users
