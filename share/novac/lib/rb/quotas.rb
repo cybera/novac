@@ -140,6 +140,7 @@ class Quotas
     cinder = @regions[@master_region]['cinder']
     quota = @defaults.clone
 
+<<<<<<< HEAD
     # Query for the quota for the certain project
     # For all but Block Storage
     quota_rs = nova.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
@@ -153,13 +154,13 @@ class Quotas
     quota_rs = cinder.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
 
     quota_rs.each do |row|
-      quota[row['resource']] = row['in_use']
+      resources[row['resource']] = row['in_use']
     end
 
     _disconnect_from_dbs
 
     # Return the quota
-    resources
+    return resources
   end
 
   # Manually calculates the resources that a user has used in a project

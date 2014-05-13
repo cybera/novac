@@ -1,4 +1,9 @@
 #!/usr/bin/env ruby
+
+# Usage: novac quota-get-used-resources <project id> [resource]
+# Summary: Show quota usage for a project - optionally specify a single resource.
+# Help: resource is an optional argument.
+
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
