@@ -132,11 +132,11 @@ class Quotas
       quota_rs = cinder.query "select resource, in_use from quota_usages where project_id = '#{project_id}'"
 
       quota_rs.each do |row|
-        quota[row['resource']] = row['in_use']
+        resources[row['resource']] = row['in_use']
       end
 
       # Return the quota
-      resources
+      return resources
     ensure
       nova.close if nova
       cinder.close if cinder
