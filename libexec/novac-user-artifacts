@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+
+# Usage: novac user-artifacts <user name>
+# Summary: Lists all resources that a user has created (projects, instances, volumes)
+# Help: "project name" is required.
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'projects'
+
+required_libs = ['terminal-table','mysql2']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Was a project name specified?
+if ARGV[0]
+  u = ARGV[0]
+else
+  puts "User name is required"
+  exit 1
+end
+
+# Objects
+novadb = NovaDB.new
+cloud = novadb.cloud
+
+db = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password])
+
+user_query = "select id from keystone.user where name = '#{u}'"
+user_id = nil
+db.query(user_query).each(:as => :hash) do |row|
+  user_id = row['id']
+end
+
+unless user_id
+  puts "User not found."
+  exit 1
+end
+
+puts "User #{u}"
+puts ""
+
+puts "Projects"
+project_query = "select project.name from keystone.user_project_metadata inner join keystone.user on keystone.user_project_metadata.user_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.user_project_metadata.project_id where keystone.user.id = '#{user_id}' order by project.name"
+db.query(project_query).each(:as => :hash) do |row|
+  puts "* #{row['name']}"
+end
+puts ""
+
+novadb.regions.each do |region|
+  puts "Instances in #{region}"
+  instances_query = "select instances.id, instances.display_name from nova_#{region}.instances where instances.user_id = '#{user_id}' and deleted = 0 order by display_name"
+  db.query(instances_query).each(:as => :hash) do |row|
+    puts "* #{row['display_name']}"
+  end
+  puts ""
+
+  puts "Volumes in #{region}"
+  volumes_query = "select volumes.id, volumes.display_name from cinder_#{region}.volumes where volumes.user_id = '#{user_id}' and deleted = 0 order by display_name"
+  db.query(volumes_query).each(:as => :hash) do |row|
+    puts "* #{row['display_name']}"
+  end
+  puts ""
+end
