@@ -43,9 +43,9 @@ end
 
 # Objects
 novadb = NovaDB.new
-cloud = novadb.cloud
+master = novadb.master_cloud
 
-project_id = project.keys[0]
+project_id = project[0][0]
 project_name = p
 
 puts "Project #{p}"
@@ -57,7 +57,7 @@ Projects.new.users(project_id).each do |user_id, user_name|
 end
 puts ""
 
-db = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password])
+db = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password])
 images_query = "select images.id, images.name as image_name from glance.images where glance.images.owner = '#{project_id}' order by images.name"
 
 puts "Images / Snapshots"
@@ -65,24 +65,27 @@ db.query(images_query).each(:as => :hash) do |row|
   puts "* #{row['image_name']}"
 end
 puts ""
+db.close()
 
-novadb.regions.each do |region|
+novadb.clouds.each do |region, creds|
+  db = Mysql2::Client.new(:host => creds[:server], :username => creds[:username], :password => creds[:password])
+
   puts "Instances in #{region}"
-  instances_query = "select instances.id, instances.display_name from nova_#{region}.instances where instances.project_id = '#{project_id}' and deleted = 0 order by display_name"
+  instances_query = "select instances.id, instances.display_name from nova.instances where instances.project_id = '#{project_id}' and deleted = 0 order by display_name"
   db.query(instances_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
   puts "Volumes in #{region}"
-  volumes_query = "select volumes.id, volumes.display_name from cinder_#{region}.volumes where volumes.project_id = '#{project_id}' and deleted = 0 order by display_name"
+  volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.project_id = '#{project_id}' and deleted = 0 order by display_name"
   db.query(volumes_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
   puts "Floating IPs in #{region}"
-  floating_ip_query = "select address from nova_#{region}.floating_ips where floating_ips.project_id = '#{project_id}' order by address"
+  floating_ip_query = "select address from nova.floating_ips where floating_ips.project_id = '#{project_id}' order by address"
   db.query(floating_ip_query).each(:as => :hash) do |row|
     puts "* #{row['address']}"
   end

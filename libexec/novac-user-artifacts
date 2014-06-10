@@ -36,9 +36,9 @@ end
 
 # Objects
 novadb = NovaDB.new
-cloud = novadb.cloud
+master = novadb.master_cloud
 
-db = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password])
+db = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password])
 
 user_query = "select id from keystone.user where name = '#{u}'"
 user_id = nil
@@ -61,16 +61,20 @@ db.query(project_query).each(:as => :hash) do |row|
 end
 puts ""
 
-novadb.regions.each do |region|
+db.close if db
+
+novadb.clouds.each do |region, creds|
+  db = Mysql2::Client.new(:host => creds[:server], :username => master[:username], :password => master[:password])
+
   puts "Instances in #{region}"
-  instances_query = "select instances.id, instances.display_name from nova_#{region}.instances where instances.user_id = '#{user_id}' and deleted = 0 order by display_name"
+  instances_query = "select instances.id, instances.display_name from nova.instances where instances.user_id = '#{user_id}' and deleted = 0 order by display_name"
   db.query(instances_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
   puts "Volumes in #{region}"
-  volumes_query = "select volumes.id, volumes.display_name from cinder_#{region}.volumes where volumes.user_id = '#{user_id}' and deleted = 0 order by display_name"
+  volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.user_id = '#{user_id}' and deleted = 0 order by display_name"
   db.query(volumes_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
