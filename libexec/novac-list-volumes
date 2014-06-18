@@ -52,13 +52,14 @@ novadb.clouds.each do |region, creds|
       end
 
       # Get the project name
+      project = nil
       project_rs = keystone.query "select name from project where id = '#{row['project_id']}'"
-      begin
+      if project_rs.count > 0
         project = project_rs.first['name']
-      rescue
-        puts "WARNING. The following volume is not associated with an existing project: #{row['id']}"
-        project = "z WARNING: PROJECT DOES NOT EXIST"
+      else
+        project = row['project_id']
       end
+
       # Build the output row
       if not rows.has_key?(project)
         rows[project] = []

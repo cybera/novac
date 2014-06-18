@@ -58,10 +58,22 @@ novadb.clouds.each do |region, creds|
       host_short = row['host'].split('.')[0]
 
       # Get user name
-      user = keystone.query(user_query + "'" + row['user_id'] + "'").first['name']
+      user = nil
+      user_rs = keystone.query(user_query + "'" + row['user_id'] + "'")
+      if (user_rs.count > 0)
+        user = user_rs.first['name']
+      else
+        user = row['user_id']
+      end
 
       # Project name
-      project = keystone.query(project_query + "'" + row['project_id'] + "'").first['name']
+      project = nil
+      project_rs = keystone.query(project_query + "'" + row['project_id'] + "'")
+      if (project_rs.count > 0)
+        project = project_rs.first['name']
+      else
+        project = row['project_id']
+      end
 
       # Image name
       image = glance.query(image_query + "'" + row['image_ref'] + "'").first['name']
