@@ -30,7 +30,7 @@ end
 if ARGV[0]
   u = ARGV[0]
 else
-  puts "User name is required"
+  puts "User name or ID is required"
   exit 1
 end
 
@@ -40,12 +40,22 @@ cloud = novadb.cloud
 
 db = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password])
 
-user_query = "select id from keystone.user where name = '#{u}'"
+# Was a user ID given?
 user_id = nil
+user_query = "select id from keystone.user where id = '#{u}'"
 db.query(user_query).each(:as => :hash) do |row|
   user_id = row['id']
 end
 
+# Was a user name given?
+unless user_id
+  user_query = "select id from keystone.user where name = '#{u}'"
+  db.query(user_query).each(:as => :hash) do |row|
+    user_id = row['id']
+  end
+end
+
+# Nothing found
 unless user_id
   puts "User not found."
   exit 1
