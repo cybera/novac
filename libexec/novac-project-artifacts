@@ -30,12 +30,22 @@ end
 if ARGV[0]
   p = ARGV[0]
 else
-  puts "Project name is required"
+  puts "Project name or ID is required"
   exit 1
 end
 
-project = Projects.new.projects.select { |k, v| v == p }
+# All projects
+projects = Projects.new.projects
 
+# Was a UUID given?
+project = projects[p]
+
+# Was a project name given?
+unless project
+  project = projects.select { |k, v| v == p }
+end
+
+# Not found at all
 unless project
   puts "Project not found"
   exit 1

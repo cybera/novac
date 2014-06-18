@@ -53,11 +53,13 @@ novadb.clouds.each do |region, creds|
     secgroup_rs = nova.query secgroup_query
     secgroup_rs.each do |row|
       # Project name
-      project = keystone.query("select name from project where id = '#{row['project_id']}'").first['name']
+      keystone.query("select name from project where id = '#{row['project_id']}'").each do |project_row|
+        project = project_row['name']
 
-      # Build the output row
-      #rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], row['key_name'], image]
-      rows << [ project, row['from_port'], row['to_port'], row['cidr'] ]
+        # Build the output row
+        #rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], row['key_name'], image]
+        rows << [ project, row['from_port'], row['to_port'], row['cidr'] ]
+      end
     end
   end
 end
