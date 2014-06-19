@@ -10,7 +10,7 @@ limit = ARGV[1]
 
 quotas = Quotas.new
 
-object_mb = quotas.used(project_id)['object_mb']
+object_mb = quotas.calculate_used(project_id)['object_mb']
 if object_mb
   puts object_mb
 else

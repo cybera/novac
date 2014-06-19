@@ -50,7 +50,7 @@ if project
   total_usage = {}
   p.projects.each do |project_id, project_name|
     if project_name == project
-      total_usage[project_id] = quotas.used(project_id)
+      total_usage[project_id] = quotas.calculate_used(project_id)
       to_report[project_id] = project_name
       quota[project_id] = quotas.project_quota(project_id)
     end
