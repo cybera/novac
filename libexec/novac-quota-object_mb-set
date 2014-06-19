@@ -3,14 +3,23 @@ $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
 require 'quotas'
+require 'projects'
 
 # variables
 project_id = ARGV[0]
 limit = ARGV[1]
 
-puts project_id
-puts limit
+#puts project_id
+#puts limit
 
 quotas = Quotas.new
+projects = Projects.new.projects
+project_name = projects[project_id]
 
 quotas.set_project_limit_in_all_regions(project_id, 'object_mb', limit)
+
+quota_in_bytes = Integer(limit) * 1024 * 1024
+command = "\"#{project_name}\" #{quota_in_bytes}"
+
+puts command
+system("/root/novac/bin/novac swift-set-quota #{command}")
