@@ -1,8 +1,9 @@
 require 'novadb'
 require 'projects'
+require 'parallel'
 
 # required libs
-required_libs = ['mysql2']
+required_libs = ['mysql2', 'parallel']
 begin
   required_libs.each { |l| require l}
 rescue LoadError
@@ -38,6 +39,7 @@ class Quotas
 
   # Returns a hash of the project's quota limits
   # Including defaults
+  # Used when Horizon needs to obtain a user's resource limit
   def project_quota(project_id)
     begin
       # Get the master cloud
@@ -73,8 +75,11 @@ class Quotas
     end
   end
 
+
   # Returns a hash of the project's quota limits
   # But no defaults
+  # Used to determine what values need syncd to another region.
+  # Default values shouldn't be syncd
   def project_quota_limits(project_id)
     quota = {}
     begin
@@ -107,7 +112,10 @@ class Quotas
     end
   end
 
-  # Return the resources used. No manual calculations -- might be out of sync until next balance
+
+  # Return the resources used.
+  # No manual calculations -- might be out of sync until next balance
+  # Used by Horizon for various functions. Called by novac.
   def get_used_resources(project_id)
     resources = {}
     begin
@@ -143,22 +151,18 @@ class Quotas
     end
   end
 
+
   # Manually calculates the resources that a project has used
-  def used(project_id)
+  def calculate_used(project_id)
     resources = {}
 
     # Loop through all clouds
     @novadb.clouds.each do |region, creds|
       begin
-        # Connect to nova database of the current cloud
         nova = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
         cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
         glance = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'glance' )
-      rescue
-        next
-      end
 
-      begin
         # These queries are used to manually calculate the resources
         queries = {
           :instance_count => {
@@ -215,6 +219,9 @@ class Quotas
             end
           end
         end
+      rescue
+        puts "#{region} failed"
+        next
       ensure
         nova.close if nova
         cinder.close if cinder
@@ -224,91 +231,20 @@ class Quotas
     resources
   end
 
+
   # Manually calculates all resources used by all projects
+  # Calls the above function for each project that exists.
   def all_projects_used
     total_usage = {}
     projects = Projects.new
 
-    # Loop through all clouds
-    @novadb.clouds.each do |region, creds|
-      begin
-        # Connect to nova database of the current cloud
-        nova = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
-        glance = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'glance' )
-      rescue
-        next
-      end
-      begin
-
-        # Loop through each project
-        projects.project_ids.each do |project_id|
-          if not total_usage.has_key?(project_id)
-            total_usage[project_id] = {}
-          end
-
-          # These queries are used to manually calculate the resources
-          queries = {
-            :instance_count => {
-              :query => "select count(*) as instances from instances
-                where project_id = '#{project_id}' and deleted = 0",
-              :database => nova
-            },
-            :instance_usage_info => {
-              :query => "select sum(memory_mb) ram, sum(vcpus) as cores from instances
-                where project_id = '#{project_id}' and deleted = 0",
-              :database => nova,
-            },
-            :floating_ip_count => {
-              :query => "select count(*) as floating_ips from floating_ips
-                where project_id = '#{project_id}'",
-              :database => nova,
-            },
-            :volume_count => {
-              :query => "select count(*) as volumes from volumes
-                where project_id = '#{project_id}' and deleted = 0",
-              :database => cinder,
-            },
-            :volume_usage_info => {
-              :query => "select sum(size) as gigabytes from volumes
-                where project_id = '#{project_id}' and deleted = 0",
-              :database => cinder,
-            },
-            :image_count => {
-              :query => "select count(*) as images from images
-                where owner = '#{project_id}' and (status != 'deleted' and status != 'killed')",
-              :database => glance,
-            },
-            :object_mb_usage => {
-              :query => "select in_use as object_mb from quota_usages
-                where project_id = '#{project_id}' and resource = 'swift_regional_object_usage'",
-              :database => nova,
-            }
-          }
-
-          # Perform all queries to do a manual inventory
-          queries.each do |query, query_info|
-            q = query_info[:query]
-            database = query_info[:database]
-            rs = database.query q
-            usage = rs.first
-            if usage
-              usage.each do |column, value|
-                next if value.to_i < 0
-                if total_usage[project_id].has_key?(column)
-                  total_usage[project_id][column] += value.to_i
-                else
-                  total_usage[project_id][column] = value.to_i
-                end
-              end
-            end
-          end
-        end
-      ensure
-        nova.close if nova
-        cinder.close if cinder
-        glance.close if glance
-      end
+    # Loop through each project
+    # And do some wacky data processing due to Parallel
+    x = Parallel.map(projects.project_ids, :in_process => 5) do |project_id|
+      { project_id => calculate_used(project_id) }
+    end
+    x.each do |y|
+      total_usage.merge!(y)
     end
     total_usage
   end
@@ -346,23 +282,29 @@ class Quotas
     end
   end
 
+
   # Balance quotas in each region for a single project
+  # Used by quota-daemon
   def balance_quotas(project_id)
     clouds = @novadb.clouds
     total_usage = {}
-    total_usage[project_id] = used(project_id)
-    used = used(project_id)
+    total_usage[project_id] = calculate_used(project_id)
     sync_all_used(total_usage)
   end
 
-  # Runs balance_quotas for each project
+
+  # Runs balance_quotas for all projects
+  # Called by cron and/or novac
   def balance_all_quotas
     projects = Projects.new
     total_usage = all_projects_used()
     sync_all_used(total_usage)
-   end
+  end
+
 
   # Sets the non-default limits for a project in all regions
+  # Not actually used right now.
+  # Probably used to be.
   def sync_project_limits(project_id)
     clouds = @novadb.clouds
     limits = project_quota_limits(project_id)
@@ -373,14 +315,6 @@ class Quotas
     end
   end
 
-  # Runs set_project_quota_limit in all regions
-  def set_project_quota_limit_in_all_regions(project_id, resource, limit)
-    clouds = @novadb.clouds
-    clouds.each do |region, creds|
-      set_project_quota_limit(project_id, region, resource, limit)
-    end
-  end
-
   # Sets a non-default limit for a certain resource for a single project in a single region
   def set_project_quota_limit(project_id, region, resource, limit)
     cloud = @novadb.clouds[region]
@@ -388,7 +322,7 @@ class Quotas
       nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
       cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
 
-      #Since Mysql2 doesn't support prepared statement - create full fledged statements first. Creates extra ifs.
+      # Since Mysql2 doesn't support prepared statement - create full fledged statements first. Creates extra ifs.
       update = "update quotas set hard_limit = '#{limit}' where resource = '#{resource}' and project_id = '#{project_id}'"
       insert = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, '#{project_id}', '#{resource}', '#{limit}')"
 
@@ -416,101 +350,67 @@ class Quotas
       end
     ensure
       nova.close if nova
-      cinder.close if nova
+      cinder.close if cinder
     end
   end
 
-  # Sets non-default limits for all projects in all regions
-  def sync_all_limits
+
+  # Runs set_project_quota_limit (above) in all regions
+  def set_project_quota_limit_in_all_regions(project_id, resource, limit)
     clouds = @novadb.clouds
     clouds.each do |region, creds|
+      set_project_quota_limit(project_id, region, resource, limit)
+    end
+  end
+
+
+  # Sets non-default limits for all projects in all regions
+  # Runs set_project_quota_limit (above) for all projects in all regions
+  def sync_all_limits
+    # Build a list of limits
+    tmp_project_limits = {}
+    projects = Projects.new
+    projects.project_ids.each do |project_id|
+      tmp_project_limits[project_id] = {}
+      limits = project_quota_limits(project_id)
+      limits.each do |resource, limit|
+        tmp_project_limits[project_id][resource] = limit
+      end
+    end
+
+    clouds = @novadb.clouds
+    master = @novadb.master_cloud
+    clouds.each do |region, creds|
       cloud = @novadb.clouds[region]
-      begin
-        nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
-
-        projects = Projects.new
-        projects.project_ids.each do |project_id|
-          limits = project_quota_limits(project_id)
-          limits.each do |resource, limit|
-            #query templates
-            update = "update quotas set hard_limit = '#{limit}' where resource = '#{resource}' and project_id = '#{project_id}'"
-            insert = "insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit) VALUES (now(), now(), 0, '#{project_id}', '#{resource}', '#{limit}')"
-
-            if resource == 'volumes' or resource == 'gigabytes'
-              quota_rs = cinder.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
-            else
-              quota_rs = nova.query "select count(*) as c from quotas where project_id = '#{project_id}' and resource = '#{resource}'"
-            end
-
-            count = quota_rs.first
-            if count['c'].to_i == 1
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query update
-              else
-                nova.query update
-              end
-            elsif count['c'].to_i == 0
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query insert
-              else
-                nova.query insert
-              end
-            else
-              throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count['c']} entries for #{resource}"
-            end
-          end
+      # Skip the master cloud as that's where the data was pulled from
+      next if cloud[:server] == master[:server]
+      # Loop through all projects 5 at a time
+      Parallel.each(tmp_project_limits.keys, :in_process => 5) do |project_id|
+        tmp_project_limits[project_id].each do |resource, limit|
+          limit = tmp_project_limits[project_id][resource]
+          #puts "#{project_id} #{region} sync #{resource} #{limit}"
+          set_project_quota_limit(project_id, region, resource, limit)
         end
-      ensure
-        nova.close if nova
-        cinder.close if cinder
       end
     end
   end
 
+
+  # Used by other functions in this file
+  # Calls the below function for each project, region, and resource
   def sync_all_used(total_usage)
     clouds = @novadb.clouds
     clouds.each do |region, creds|
-      cloud = @novadb.clouds[region]
-      begin
-        nova = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'nova' )
-        cinder = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'cinder' )
-        total_usage.each do |project_id, used|
-          used.each do |resource, in_use|
-            # Query templates
-            update = "update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"
-            insert = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),'#{project_id}','#{resource}','#{in_use}',0,0)"
-
-            if resource == 'volumes' or resource == 'gigabytes'
-              quota_rs = cinder.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
-            else
-              quota_rs = nova.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
-            end
-            count = quota_rs.first
-            if count['c'].to_i == 1
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query update
-              else
-                nova.query update
-              end
-            elsif count['c'].to_i == 0
-              if resource == 'volumes' or resource == 'gigabytes'
-                cinder.query insert
-              else
-                nova.query insert
-              end
-            else
-              throw "Unable to update #{resource} to #{in_use}. #{project_id} has #{count['c']} entries for #{resource}"
-            end
-          end
+      Parallel.each(total_usage.keys, :in_process => 5) do |project_id|
+        total_usage[project_id].each do |resource, in_use|
+          set_used(project_id, region, resource, in_use)
         end
-      ensure
-        nova.close if nova
-        cinder.close if cinder
       end
     end
   end
 
+
+  # Sets a project's resource usage in a region
   def set_used(project_id, region, resource, in_use)
     cloud = @novadb.clouds[region]
     begin
@@ -519,7 +419,7 @@ class Quotas
 
       # Query templates
       update = "update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"
-      insert = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),'#{project_id}','#{resources}','#{in_use}',0,0)"
+      insert = "insert into quota_usages (created_at, updated_at, project_id, resource, in_use, deleted, reserved) VALUES (now(),now(),'#{project_id}','#{resource}','#{in_use}',0,0)"
 
       if resource == 'volumes' or resource == 'gigabytes'
         quota_rs = cinder.query "select count(*) as c from quota_usages where project_id = '#{project_id}' and resource = '#{resource}'"
@@ -550,4 +450,5 @@ class Quotas
       cinder.close if cinder
     end
   end
+
 end
