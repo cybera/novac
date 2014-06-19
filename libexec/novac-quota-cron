@@ -30,7 +30,7 @@ projects.project_ids.each do |project_id|
   used = Integer(quotas.object_storage_usage(project_id)['object_mb'])
   # If the user is over quota, set their swift quota to 0 so they can't upload more.
   if used > limit
-    command = "#{project} 0"
+    command = "\"#{project}\" 0"
   # If they aren't over quota, set their swift quota to their limit. This effectively
   # re-enables uploads after the user deletes some files.
   else
