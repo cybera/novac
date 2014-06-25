@@ -61,8 +61,9 @@ project_name = p
 puts "Project #{p}"
 puts ""
 
-puts "Users"
-Projects.new.users(project_id).each do |user_id, user_name|
+project_list = Projects.new.users(project_id)
+puts "Users (#{project_list.length})"
+project_list.each do |user_id, user_name|
   puts "* #{user_name}"
 end
 puts ""
@@ -70,8 +71,9 @@ puts ""
 db = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password])
 images_query = "select images.id, images.name as image_name from glance.images where glance.images.owner = '#{project_id}' order by images.name"
 
-puts "Images / Snapshots"
-db.query(images_query).each(:as => :hash) do |row|
+image_list = db.query(images_query)
+puts "Images / Snapshots (#{image_list.count})"
+image_list.each(:as => :hash) do |row|
   puts "* #{row['image_name']}"
 end
 puts ""
@@ -80,23 +82,26 @@ db.close()
 novadb.clouds.each do |region, creds|
   db = Mysql2::Client.new(:host => creds[:server], :username => creds[:username], :password => creds[:password])
 
-  puts "Instances in #{region}"
   instances_query = "select instances.id, instances.display_name from nova.instances where instances.project_id = '#{project_id}' and deleted = 0 order by display_name"
-  db.query(instances_query).each(:as => :hash) do |row|
+  instance_list = db.query(instances_query)
+  puts "Instances in #{region} (#{instance_list.count})"
+  instance_list.each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
-  puts "Volumes in #{region}"
   volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.project_id = '#{project_id}' and deleted = 0 order by display_name"
-  db.query(volumes_query).each(:as => :hash) do |row|
+  volume_list = db.query(volumes_query)
+  puts "Volumes in #{region} (#{volume_list.count})"
+  volume_list.each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
-  puts "Floating IPs in #{region}"
   floating_ip_query = "select address from nova.floating_ips where floating_ips.project_id = '#{project_id}' order by address"
-  db.query(floating_ip_query).each(:as => :hash) do |row|
+  ip_list = db.query(floating_ip_query)
+  puts "Floating IPs in #{region} (#{ip_list.count})"
+  ip_list.each(:as => :hash) do |row|
     puts "* #{row['address']}"
   end
   puts ""
