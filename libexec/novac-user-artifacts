@@ -64,9 +64,10 @@ end
 puts "User #{u}"
 puts ""
 
-puts "Projects"
 project_query = "select project.name from keystone.user_project_metadata inner join keystone.user on keystone.user_project_metadata.user_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.user_project_metadata.project_id where keystone.user.id = '#{user_id}' order by project.name"
-db.query(project_query).each(:as => :hash) do |row|
+project_list = db.query(project_query)
+puts "Projects (#{project_list.count})"
+project_list.each(:as => :hash) do |row|
   puts "* #{row['name']}"
 end
 puts ""
@@ -76,16 +77,18 @@ db.close if db
 novadb.clouds.each do |region, creds|
   db = Mysql2::Client.new(:host => creds[:server], :username => master[:username], :password => master[:password])
 
-  puts "Instances in #{region}"
   instances_query = "select instances.id, instances.display_name from nova.instances where instances.user_id = '#{user_id}' and deleted = 0 order by display_name"
-  db.query(instances_query).each(:as => :hash) do |row|
+  instance_list = db.query(instances_query)
+  puts "Instances in #{region} (#{instance_list.count})"
+  instance_list.each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
-  puts "Volumes in #{region}"
   volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.user_id = '#{user_id}' and deleted = 0 order by display_name"
-  db.query(volumes_query).each(:as => :hash) do |row|
+  volume_list = db.query(volumes_query)
+  puts "Volumes in #{region} (#{volume_list.count})"
+  volume_list.each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
