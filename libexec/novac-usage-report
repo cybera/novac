@@ -1,0 +1,137 @@
+#!/usr/bin/env ruby
+# Usage: novac usage-report
+# Summary: Shows percent of projects with active instances/volumes in total and per region.
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'novadb'
+require 'projects'
+
+# List of required libraries
+required_libs = ['terminal-table','mysql2','parallel']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+project_list = Projects.new
+
+# Yay. Counters.
+project_count = project_list.project_ids.count
+launched_ever_count = 0
+launched_ever_AB_count = 0
+launched_ever_QC_count = 0
+volume_count = 0
+volume_AB_count = 0
+volume_QC_count = 0
+volume_both_count = 0
+instance_count = 0
+instance_total_count = 0
+instance_AB_count = 0
+instance_QC_count = 0
+instance_both_count = 0
+instance_AB_ever_count = 0
+instance_QC_ever_count = 0
+
+# Get a list of clouds
+novadb = NovaDB.new
+master = novadb.master_cloud
+clouds = novadb.clouds
+
+
+nova_ab = Mysql2::Client.new( :host => clouds['alberta'][:server], :username => clouds['alberta'][:username], :password => clouds['alberta'][:password], :database => 'nova')
+nova_qc = Mysql2::Client.new( :host => clouds['quebec'][:server], :username => clouds['quebec'][:username], :password => clouds['quebec'][:password], :database => 'nova')
+
+project_list.project_ids.each do |project_id|
+  project = project_list.projects[project_id]
+  region_flag = 0
+
+  #Check for active instances exists in AB
+  count = nova_ab.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0 AND `project_id` = '#{project_id}'")
+  ever_count = nova_ab.query("SELECT COUNT(*) as count FROM `compute_node_stats` WHERE `key` LIKE '%#{project_id}'")
+
+  #Project "used" and active counters increase
+  if(count.first["count"] > 0)
+    launched_ever_count += 1
+    launched_ever_AB_count += 1
+    instance_AB_count += 1
+    instance_count += 1
+    region_flag = 1
+    instance_AB_ever_count += (ever_count.first["count"] + count.first["count"])
+  elsif (ever_count.first["count"] > 0)
+    launched_ever_count +=1
+    launched_ever_AB_count += 1
+    instance_AB_ever_count += ever_count.first["count"]
+    region_flag = 1
+  end
+
+  #Check for active instance exists in QC
+
+  count = nova_qc.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0 AND `project_id` = '#{project_id}'")
+  ever_count = nova_qc.query("SELECT COUNT(*) as count FROM `compute_node_stats` WHERE `key` LIKE '%#{project_id}'")
+
+#Project "used" and active counters increase
+  if(count.first["count"] > 0)
+    #Avoid double counting in both regions
+    if(region_flag == 0)
+      launched_ever_count += 1
+      instance_count += 1
+    end
+
+    launched_ever_QC_count += 1
+    instance_QC_count += 1
+    instance_QC_ever_count += (ever_count.first["count"] + count.first["count"])
+  elsif (ever_count.first["count"] > 0)
+    if(region_flag == 0)
+      launched_ever_count +=1
+    end
+    launched_ever_QC_count += 1
+    instance_QC_ever_count += ever_count.first["count"]
+  end
+
+  #Check if volume exists in AB
+
+  #Check if volume exists in QC
+
+end
+
+
+ab_count = nova_ab.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0")
+qc_count = nova_qc.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0")
+ab_ever_count = nova_ab.query("SELECT COUNT(*) as count FROM `compute_node_stats` WHERE `key` = 'num_vm_building'")
+qc_ever_count = nova_qc.query("SELECT COUNT(*) as count FROM `compute_node_stats` WHERE `key` = 'num_vm_building'")
+
+instances_count = ab_count.first["count"] + qc_count.first["count"]
+instance_total_count = ab_ever_count.first["count"] + qc_ever_count.first["count"]
+
+puts "Total Projects:             #{project_count}"
+puts "Total Active Instances:     #{instances_count}"
+puts "Total Ever Instances:       #{instance_total_count}"
+puts "Total Ever Instances in AB: #{instance_AB_ever_count}"
+puts "Total Ever Instances in QC: #{instance_QC_ever_count}"
+puts ""
+puts "-----"
+puts ""
+puts "Launched an Instance:       #{(launched_ever_count / project_count.to_f * 100).round()} % (#{launched_ever_count})"
+puts "Launched an Instance in AB: #{(launched_ever_AB_count / project_count.to_f * 100).round()} % (#{launched_ever_AB_count})"
+puts "Launched an Instance in QC: #{(launched_ever_QC_count / project_count.to_f * 100).round()} % (#{launched_ever_QC_count})"
+puts "Has an Active Instance:     #{(instance_count / project_count.to_f * 100).round()} % (#{instance_count})"
+puts "Has an Active Instance(AB): #{(instance_AB_count / project_count.to_f * 100).round()} % (#{instance_AB_count})"
+puts "Has an Active Instance(QC): #{(instance_QC_count / project_count.to_f * 100).round()} % (#{instance_QC_count})"
+#puts "Has an Active Volume:       #{(launched_ever_QC_count / project_count.to_f * 100).round()} %"
+#puts "Has an Active Volume(AB):   #{(launched_ever_count / project_count.to_f * 100).round()} %"
+#puts "Has an Active Volume(QC):   #{(launched_ever_count / project_count.to_f * 100).round()} %"
+#puts "Active Volumes in AB:       #{(launched_ever_count / project_count.to_f * 100).round()} %"
+#puts "Active Volumes in QC:       #{(launched_ever_count / project_count.to_f * 100).round()} %"
+
