@@ -62,6 +62,7 @@ unless user_id
 end
 
 puts "User #{u}"
+puts "ID: #{user_id}"
 puts ""
 
 project_query = "select project.name from keystone.user_project_metadata inner join keystone.user on keystone.user_project_metadata.user_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.user_project_metadata.project_id where keystone.user.id = '#{user_id}' order by project.name"

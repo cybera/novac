@@ -59,6 +59,7 @@ project_id = project[0][0]
 project_name = p
 
 puts "Project #{p}"
+puts "ID: #{project_id}"
 puts ""
 
 project_list = Projects.new.users(project_id)
