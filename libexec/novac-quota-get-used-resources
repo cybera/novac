@@ -22,7 +22,7 @@ quotas = Quotas.new
 resources = quotas.get_used_resources(project_id)
 
 if resource
-  puts resources(project_id)[resource]
+  puts resources[resource]
 else
   resources.each do |r, v|
     puts "#{r} #{v}"
