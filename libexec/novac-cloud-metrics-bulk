@@ -1,0 +1,93 @@
+#!/usr/bin/env ruby
+
+# Usage: novac cloud-metrics
+# Summary: Print tenant usage for the past 24 hour in collectd format
+# Help: Print tenant usage for the past 24 hour in graphite format
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'projects'
+
+# https://raw.github.com/stackforge/cookbook-openstack-common/master/libraries/parse.rb
+def prettytable_to_array table
+  ret = []
+  return ret if table == nil
+  indicies = []
+  (table.split(/$/).collect{|x| x.strip}).each { |line|
+    unless line.start_with?('+--') or line.empty?
+      cols = line.split('|').collect{|x| x.strip}
+      cols.shift
+      if indicies == []
+        indicies = cols
+        next
+      end
+      newobj = {}
+      cols.each { |val|
+        newobj[indicies[newobj.length]] = val
+      }
+      ret.push(newobj)
+    end
+  }
+  # this kinda sucks, but some prettytable data comes
+  # as Property Value pairs. If this is the case, then
+  # flatten it as expected.
+  newobj = {}
+  if indicies == ['Property', 'Value']
+    ret.each { |x|
+      newobj[x['Property']] = x['Value']
+    }
+    [newobj]
+  else
+    ret
+  end
+end
+
+location = %x{ facter location }.chomp
+projects = Projects.new
+
+now = Time.now
+midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
+
+545.downto(0) do |day|
+  today = midnight - (day.to_i * 86400)
+  t = today.to_i
+  yesterday = today - 86400
+
+  #puts today.strftime("%Y-%m-%d")
+  #puts yesterday.strftime("%Y-%m-%d")
+
+  #today = Time.now
+  #yesterday = today - 86400
+
+  command = ". /root/openrc; nova usage-list --start #{yesterday.strftime("%Y-%m-%d")} --end #{today.strftime("%Y-%m-%d")}"
+  output = %x{ #{command} }
+
+  project_usage = {}
+
+  usages = prettytable_to_array(output)
+  usages.each do |usage|
+    project_usage[usage['Tenant ID']] = usage
+  end
+
+  projects.projects.keys.each do |project_id|
+    if project_usage.key?(project_id)
+      instances = project_usage[project_id]['Instances'].to_i
+      memory = project_usage[project_id]['RAM MB-Hours'].to_i / 24 / 1024
+      cpu = project_usage[project_id]['CPU Hours'].to_i / 24
+      disk = project_usage[project_id]['Disk GB-Hours'].to_i / 24
+      #volume = %x{ /root/novac/bin/novac quota-get-used-resources #{project_id} gigabytes }.chomp if location == 'alberta'
+    else
+      instances = 0
+      memory = 0
+      cpu = 0
+      disk = 0
+      #volume = %x{ /root/novac/bin/novac quota-get-used-resources #{project_id} gigabytes }.chomp if location == 'alberta'
+    end
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_instances interval=86400 #{t}:#{instances}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_memory interval=86400 #{t}:#{memory}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_cpu interval=86400 #{t}:#{cpu}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_disk interval=86400 #{t}:#{disk}"
+    #puts "PUTVAL #{project_id}/resources-#{location}/cloud_resource-volume interval=86400 #{today.to_i}:#{volume}" if location == 'alberta'
+  end
+  sleep 1
+end
