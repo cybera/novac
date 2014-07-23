@@ -45,8 +45,11 @@ end
 location = %x{ facter location }.chomp
 projects = Projects.new
 
-729.downto(2) do |day|
-  today = Time.now - (day.to_i * 86400)
+now = Time.now
+midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
+
+545.downto(2) do |day|
+  today = midnight - (day.to_i * 86400)
   yesterday = today - 86400
 
   #puts today.strftime("%Y-%m-%d")
@@ -67,7 +70,7 @@ projects = Projects.new
 
   projects.projects.keys.each do |project_id|
     if project_usage.key?(project_id)
-      instances = project_usage[project_id]['Instances']
+      instances = project_usage[project_id]['Instances'].to_i
       memory = project_usage[project_id]['RAM MB-Hours'].to_i / 24
       cpu = project_usage[project_id]['CPU Hours'].to_i / 24
       disk = project_usage[project_id]['Disk GB-Hours'].to_i / 24
@@ -79,11 +82,12 @@ projects = Projects.new
       disk = 0
       #volume = %x{ /root/novac/bin/novac quota-get-used-resources #{project_id} gigabytes }.chomp if location == 'alberta'
     end
-    puts "PUTVAL #{location}/#{project_id}/cloud_resource_instances #{today.to_i}:#{instances}"
-    puts "PUTVAL #{location}/#{project_id}/cloud_resource_memory #{today.to_i}:#{memory}"
-    puts "PUTVAL #{location}/#{project_id}/cloud_resource_cpu #{today.to_i}:#{cpu}"
-    puts "PUTVAL #{location}/#{project_id}/cloud_resource_disk #{today.to_i}:#{disk}"
+    t = today.to_i
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_instances interval=86400 #{today.to_i}:#{instances}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_memory interval=86400 #{today.to_i}:#{memory}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_cpu interval=86400 #{today.to_i}:#{cpu}"
+    puts "PUTVAL #{location}/#{project_id}/cloud_resource_disk interval=86400 #{today.to_i}:#{disk}"
     #puts "PUTVAL #{project_id}/resources-#{location}/cloud_resource-volume interval=86400 #{today.to_i}:#{volume}" if location == 'alberta'
   end
-  sleep 5
+  sleep 1
 end
