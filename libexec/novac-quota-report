@@ -63,6 +63,18 @@ else
   end
 end
 
+# Load start dates into memory
+start_dates = {}
+
+File.open("/etc/openstack-dashboard/start-dates.txt", "r") do |file|
+  while (line = file.gets)
+    if line != ""
+      foo = line.split(":")
+      start_dates[foo[0]] = foo[1]
+    end
+  end
+end
+
 # Report quota usage
 x = to_report.sort_by { |k,v| v }
 x.each do |project_id, project_name|
@@ -82,6 +94,10 @@ x.each do |project_id, project_name|
     rows << [resource,used,limit,"#{percent} %"]
   end
   next unless rows.any?
+
+  start_date = start_dates[project_id]
+  # Just in case - truncate Project Name to < 80 characters (:width)
+  project_name = "#{project_name[0..60]}\n#{start_date}"
   table = Terminal::Table.new :title => project_name, :headings => ['Resource', 'Used', 'Limit',''], :rows => rows, :style => { :width => 80 }
   table.align_column(-1, :right)
   table.align_column(-2, :right)
