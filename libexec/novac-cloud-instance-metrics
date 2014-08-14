@@ -1,0 +1,41 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'mysql2'
+require 'rubygems'
+require 'users'
+require 'novadb'
+require 'pp'
+
+novadb = NovaDB.new
+time = Time.now.to_i
+region = %x{ facter location }.chomp
+db = novadb.clouds[region]
+
+nova = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'nova' )
+instance_metrics = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'instance_metrics' )
+
+instances = {}
+collection_output = %x{ dsh -cg cnodes /usr/local/bin/instance_metrics.rb }
+collection_output.split("\n").each do |line|
+  pieces = line.split(/\s+/)
+  uuid = pieces.shift
+  metric_category = pieces.shift
+
+  data = {}
+  pieces.each do |p|
+    (k,v) = p.split(':')
+    data[k] = v
+  end
+  values = data.values.map { |v| "'#{v}'" }
+
+  insert_query = ""
+  if metric_category == 'instance'
+    insert_query = "insert ignore into instance (uuid, instance) values ('#{uuid}', #{values.join(', ')})"
+  else
+    insert_query = "insert into #{metric_category} (#{data.keys.join(', ')}, timestamp) VALUES (#{values.join(', ')}, '#{time}')"
+  end
+
+  instance_metrics.query insert_query
+
+end
+
