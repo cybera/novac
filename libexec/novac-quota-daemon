@@ -39,6 +39,7 @@ events = ['compute.instance.create.start', 'compute.instance.delete.end',
           'volume.create.start', 'volume.delete.end',
           'network.floating_ip.allocate', 'network.floating_ip.deallocate',
           'image.upload', 'image.delete', 'image.update']
+#events = []
 
 logger.info('Initialized OK')
 
