@@ -3,7 +3,7 @@ require 'projects'
 require 'json'
 
 # required libs
-required_libs = ['mysql']
+required_libs = ['mysql2']
 begin
   required_libs.each { |l| require l }
 rescue LoadError
