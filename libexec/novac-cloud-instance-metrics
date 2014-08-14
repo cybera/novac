@@ -35,7 +35,12 @@ collection_output.split("\n").each do |line|
     insert_query = "insert into #{metric_category} (#{data.keys.join(', ')}, timestamp) VALUES (#{values.join(', ')}, '#{time}')"
   end
 
-  instance_metrics.query insert_query
+  begin
+    instance_metrics.query insert_query
+    #puts insert_query
+  rescue
+    next
+  end
 
 end
 
