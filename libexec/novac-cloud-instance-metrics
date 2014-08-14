@@ -22,6 +22,7 @@ collection_output.split("\n").each do |line|
   metric_category = pieces.shift
 
   data = {}
+  data['uuid'] = uuid
   pieces.each do |p|
     (k,v) = p.split(':')
     data[k] = v
