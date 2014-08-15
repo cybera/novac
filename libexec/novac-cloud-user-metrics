@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 
-# Usage: novac cloud-metrics
+# Usage: novac cloud-user-metrics
 # Summary: Print tenant usage for the past 24 hour in collectd format
-# Help: Print tenant usage for the past 24 hour in graphite format
+# Help: Print tenant usage for the past 24 hour in collectd format
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'

@@ -48,7 +48,7 @@ projects = Projects.new
 now = Time.now
 midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
 
-545.downto(0) do |day|
+550.downto(0) do |day|
   today = midnight - (day.to_i * 86400)
   t = today.to_i
   yesterday = today - 86400
