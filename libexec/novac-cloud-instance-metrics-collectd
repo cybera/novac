@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby
+
+# Usage: novac cloud-instance-metrics-collectd
+# Summary: Adds instance usage to collectd for the past 24 hours
+# Help: Adds instance usage to collectd for the past 24 hours
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'mysql2'
+require 'novadb'
+
+location = %x{ facter location }.chomp
+novadb = NovaDB.new
+db = novadb.clouds[location]
+itop = {}
+
+
+now = Time.now
+midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
+#today = midnight.to_i
+today = now.to_i
+yesterday = today - 86400
+
+queries = {
+  'cpu'       => "select * from cpu where timestamp < #{today} and timestamp > #{yesterday}",
+  'memory'    => "select * from memory where timestamp < #{today} and timestamp > #{yesterday}",
+  'disk'      => "select * from disk where timestamp < #{today} and timestamp > #{yesterday}",
+  'interface' => "select * from interface where timestamp < #{today} and timestamp > #{yesterday}",
+}
+
+instance_metrics = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'instance_metrics' )
+
+queries.each do |metric, query|
+  query_rs = instance_metrics.query query
+  query_rs.each do |row|
+    if itop.key?(row['uuid'])
+      project_id = itop[row['uuid']]
+    else
+      project_query = "select project_id from nova.instances where uuid = '#{row['uuid']}'"
+      project_query_rs = instance_metrics.query project_query
+      if project_query_rs.count == 1
+        project_id = project_query_rs.first['project_id']
+      else
+        next
+      end
+      itop[row['uuid']] = project_id
+    end
+
+    timestamp = row.delete('timestamp')
+    uuid = row.delete('uuid')
+    row_id = row.delete('id')
+
+    submetric = ""
+    if metric == 'interface' or metric == 'disk'
+      submetric = "-#{row[metric]}"
+      row.delete(metric)
+    end
+
+    values = []
+    row.keys.sort.each do |k|
+      values << row[k]
+    end
+
+    puts "PUTVAL project-#{project_id}/#{uuid}-#{metric}/cloud_instance_#{metric}#{submetric} interval=600 #{timestamp}:#{values.join(':')}"
+
+  end
+end
