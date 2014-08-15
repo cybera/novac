@@ -14,7 +14,7 @@ db = novadb.clouds[region]
 instance_metrics = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'instance_metrics' )
 
 instances = {}
-collection_output = %x{ dsh -cg cnodes -F 3 /usr/local/bin/instance_metrics.rb }
+collection_output = %x{ dsh -g cnodes /usr/local/bin/instance_metrics.rb }
 collection_output.split("\n").each do |line|
   pieces = line.split(/\s+/)
   uuid = pieces.shift
