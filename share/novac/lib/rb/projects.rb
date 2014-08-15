@@ -51,6 +51,27 @@ class Projects
     end
   end
 
+  def enabled_projects
+    novadb = NovaDB.new
+    master = novadb.master_cloud
+    begin
+      p = {}
+      keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
+
+      # Get the id and name of all projects
+      project_rs = keystone.query "select id, name from project where enabled = 1"
+      project_rs.each do |row|
+        # Ignore services project
+        next if row['name'] == 'services'
+        # Give each project a default quota
+        p[row['id']] = row['name']
+      end
+      p
+    ensure
+      keystone.close if keystone
+    end
+  end
+
   def project_names
     @projects.values
   end

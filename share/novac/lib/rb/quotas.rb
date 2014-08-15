@@ -153,11 +153,17 @@ class Quotas
 
 
   # Manually calculates the resources that a project has used
-  def calculate_used(project_id)
+  def calculate_used(project_id, region = nil)
     resources = {}
 
     # Loop through all clouds
-    @novadb.clouds.each do |region, creds|
+    @novadb.clouds.each do |r, creds|
+
+      # If a region was specified, then only calculate for that region
+      if region
+        next if r != region
+      end
+
       begin
         nova = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
         cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
@@ -220,8 +226,8 @@ class Quotas
           end
         end
       rescue
-        puts "#{region} failed"
-        next
+        puts "Could not complete calculating used resources. This might have been due to a network error. If you see this message more than once, please look into this in more detail. If you are on-call, this is not an emergency."
+        exit 1
       ensure
         nova.close if nova
         cinder.close if cinder
@@ -240,13 +246,18 @@ class Quotas
 
     # Loop through each project
     # And do some wacky data processing due to Parallel
-    x = Parallel.map(projects.project_ids, :in_process => 5) do |project_id|
-      { project_id => calculate_used(project_id) }
+    begin
+      x = Parallel.map(projects.project_ids) do |project_id|
+        { project_id => calculate_used(project_id) }
+      end
+      x.each do |y|
+        total_usage.merge!(y)
+      end
+      total_usage
+    rescue
+      puts "Could not complete calculating used resources. This might have been due to a network error. If you see this message more than once, please look into this in more detail. If you are on-call, this is not an emergency."
+      exit 1
     end
-    x.each do |y|
-      total_usage.merge!(y)
-    end
-    total_usage
   end
 
 
@@ -385,7 +396,7 @@ class Quotas
       # Skip the master cloud as that's where the data was pulled from
       next if cloud[:server] == master[:server]
       # Loop through all projects 5 at a time
-      Parallel.each(tmp_project_limits.keys, :in_process => 5) do |project_id|
+      Parallel.each(tmp_project_limits.keys) do |project_id|
         tmp_project_limits[project_id].each do |resource, limit|
           limit = tmp_project_limits[project_id][resource]
           #puts "#{project_id} #{region} sync #{resource} #{limit}"
@@ -401,7 +412,7 @@ class Quotas
   def sync_all_used(total_usage)
     clouds = @novadb.clouds
     clouds.each do |region, creds|
-      Parallel.each(total_usage.keys, :in_process => 5) do |project_id|
+      Parallel.each(total_usage.keys) do |project_id|
         total_usage[project_id].each do |resource, in_use|
           set_used(project_id, region, resource, in_use)
         end
