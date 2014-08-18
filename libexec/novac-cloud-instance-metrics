@@ -7,7 +7,8 @@ require 'novadb'
 require 'pp'
 
 novadb = NovaDB.new
-time = Time.now.to_i
+now = Time.now
+time = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
 region = %x{ facter location }.chomp
 db = novadb.clouds[region]
 

@@ -14,18 +14,15 @@ novadb = NovaDB.new
 db = novadb.clouds[location]
 itop = {}
 
-
 now = Time.now
-midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
-#today = midnight.to_i
-today = now.to_i
-yesterday = today - 86400
+now = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
+past_hour = now - 3600
 
 queries = {
-  'cpu'       => "select * from cpu where timestamp < #{today} and timestamp > #{yesterday}",
-  'memory'    => "select * from memory where timestamp < #{today} and timestamp > #{yesterday}",
-  'disk'      => "select * from disk where timestamp < #{today} and timestamp > #{yesterday}",
-  'interface' => "select * from interface where timestamp < #{today} and timestamp > #{yesterday}",
+  'cpu'       => "select * from cpu where timestamp < #{now} and timestamp > #{past_hour}",
+  'memory'    => "select * from memory where timestamp < #{now} and timestamp > #{past_hour}",
+  'disk'      => "select * from disk where timestamp < #{now} and timestamp > #{past_hour}",
+  'interface' => "select * from interface where timestamp < #{now} and timestamp > #{past_hour}",
 }
 
 instance_metrics = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'instance_metrics' )
