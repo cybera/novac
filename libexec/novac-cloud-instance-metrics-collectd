@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 
 # Usage: novac cloud-instance-metrics-collectd
-# Summary: Adds instance usage to collectd for the past 24 hours
-# Help: Adds instance usage to collectd for the past 24 hours
+# Summary: Adds instance usage to collectd for the past hour
+# Help: Adds instance usage to collectd for the past hour
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
@@ -15,8 +15,8 @@ db = novadb.clouds[location]
 itop = {}
 
 now = Time.now
-now = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
-past_hour = now - 3600
+now = Time.new(now.year, now.month, now.day, now.hour, 0, 0).getgm.to_i
+past_hour = now - (3600 * 1)
 
 queries = {
   'cpu'       => "select * from cpu where timestamp < #{now} and timestamp > #{past_hour}",
@@ -51,6 +51,12 @@ queries.each do |metric, query|
     if metric == 'interface' or metric == 'disk'
       submetric = "-#{row[metric]}"
       row.delete(metric)
+      if metric == 'interface'
+        row['rx_total_bytes'] = row['rx_bytes']
+        row['rx_total_packets'] = row['rx_packets']
+        row['tx_total_bytes'] = row['tx_bytes']
+        row['tx_total_packets'] = row['tx_packets']
+      end
     end
 
     values = []
