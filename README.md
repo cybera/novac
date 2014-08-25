@@ -4,7 +4,7 @@ Readme type text should go here.
 
 ## Branches
 
-Dev = Grizzly based Cloud
+Dev = Grizzly based Cloud  
 Cloud = Havana based Cloud
 
 ## Commands
@@ -46,4 +46,3 @@ Quota Threading | ? | ?
 
 Last Checked: 2014-08-25
 
->>>>>>> Stashed changes
