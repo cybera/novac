@@ -36,34 +36,15 @@ else
 end
 
 # All projects
-projects = Projects.new.projects
-project = {}
-
-# Was a UUID given?
-if projects.key?(p)
-  project[p] = projects[p]
-end
-
-# Was a project name given?
-unless project.length > 0
-  project = projects.select { |k, v| v.downcase =~ /#{p.downcase}/ }
-end
-
-# Not found at all
-if project.keys.length == 0
-  puts "Project not found"
-  exit 1
-elsif project.keys.length > 1
-  puts "More than one project found. Narrow search."
-  exit 1
-end
+projects = Projects.new
+project = projects.fuzzy_search(p)
 
 # Objects
 novadb = NovaDB.new
 master = novadb.master_cloud
 
 project_id = project.keys[0]
-project_name = project[project_id]
+project_name = project.values[0]
 
 puts "Project #{project_name}"
 puts "ID: #{project_id}"

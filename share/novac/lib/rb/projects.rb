@@ -42,8 +42,8 @@ class Projects
 
       # Get all users in a certain project
       # icehouse
-      #users_rs = keystone.query "select actor_id as user_id, user.name as name from assignment inner join user on assignment.actor_id=user.id where assignment.target_id = '#{project_id}'"
-      users_rs = keystone.query "select user_id, user.name as name from user_project_metadata inner join user on user_project_metadata.user_id=user.id where project_id = '#{project_id}'"
+      users_rs = keystone.query "select actor_id as user_id, user.name as name from assignment inner join user on assignment.actor_id=user.id where assignment.target_id = '#{project_id}'"
+      #users_rs = keystone.query "select user_id, user.name as name from user_project_metadata inner join user on user_project_metadata.user_id=user.id where project_id = '#{project_id}'"
       users_rs.each do |row|
         @users[row['user_id']] = row['name']
       end
@@ -71,6 +71,31 @@ class Projects
       p
     ensure
       keystone.close if keystone
+    end
+  end
+
+  def fuzzy_search(x)
+    # All projects
+    projects = self.projects
+    project = {}
+
+    # Was a UUID given?
+    if projects.key?(x)
+      project[x] = projects[x]
+    end
+
+    # Was a project name given?
+    unless project.length > 0
+      project = projects.select { |k, v| v.downcase =~ /#{x.downcase}/ }
+    end
+
+    # Not found at all
+    if project.keys.length == 0
+      throw "No projects found."
+    elsif project.keys.length > 1
+      throw "More than one project found."
+    else
+      return project
     end
   end
 
