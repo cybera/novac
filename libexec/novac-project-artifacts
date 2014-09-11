@@ -27,6 +27,7 @@ if Process.euid != 0
 end
 
 # Was a project name specified?
+p = nil
 if ARGV[0]
   p = ARGV[0]
 else
@@ -36,18 +37,24 @@ end
 
 # All projects
 projects = Projects.new.projects
+project = {}
 
 # Was a UUID given?
-project = projects[p]
+if projects.key?(p)
+  project[p] = projects[p]
+end
 
 # Was a project name given?
-unless project
-  project = projects.select { |k, v| v == p }
+unless project.length > 0
+  project = projects.select { |k, v| v.downcase =~ /#{p.downcase}/ }
 end
 
 # Not found at all
-unless project
+if project.keys.length == 0
   puts "Project not found"
+  exit 1
+elsif project.keys.length > 1
+  puts "More than one project found. Narrow search."
   exit 1
 end
 
@@ -55,16 +62,14 @@ end
 novadb = NovaDB.new
 master = novadb.master_cloud
 
-project_id = project[0][0]
-project_name = p
+project_id = project.keys[0]
+project_name = project[project_id]
 
-puts "Project #{p}"
+puts "Project #{project_name}"
 puts "ID: #{project_id}"
-puts ""
 
-project_list = Projects.new.users(project_id)
-puts "Users (#{project_list.length})"
-project_list.each do |user_id, user_name|
+puts "Users"
+Projects.new.users(project_id).each do |user_id, user_name|
   puts "* #{user_name}"
 end
 puts ""
@@ -72,37 +77,30 @@ puts ""
 db = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password])
 images_query = "select images.id, images.name as image_name from glance.images where glance.images.owner = '#{project_id}' order by images.name"
 
-image_list = db.query(images_query)
-puts "Images / Snapshots (#{image_list.count})"
-image_list.each(:as => :hash) do |row|
+puts "Images / Snapshots"
+db.query(images_query).each(:as => :hash) do |row|
   puts "* #{row['image_name']}"
 end
 puts ""
-db.close()
 
 novadb.clouds.each do |region, creds|
-  db = Mysql2::Client.new(:host => creds[:server], :username => creds[:username], :password => creds[:password])
-
+  puts "Instances in #{region}"
   instances_query = "select instances.id, instances.display_name from nova.instances where instances.project_id = '#{project_id}' and deleted = 0 order by display_name"
-  instance_list = db.query(instances_query)
-  puts "Instances in #{region} (#{instance_list.count})"
-  instance_list.each(:as => :hash) do |row|
+  db.query(instances_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
+  puts "Volumes in #{region}"
   volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.project_id = '#{project_id}' and deleted = 0 order by display_name"
-  volume_list = db.query(volumes_query)
-  puts "Volumes in #{region} (#{volume_list.count})"
-  volume_list.each(:as => :hash) do |row|
+  db.query(volumes_query).each(:as => :hash) do |row|
     puts "* #{row['display_name']}"
   end
   puts ""
 
+  puts "Floating IPs in #{region}"
   floating_ip_query = "select address from nova.floating_ips where floating_ips.project_id = '#{project_id}' order by address"
-  ip_list = db.query(floating_ip_query)
-  puts "Floating IPs in #{region} (#{ip_list.count})"
-  ip_list.each(:as => :hash) do |row|
+  db.query(floating_ip_query).each(:as => :hash) do |row|
     puts "* #{row['address']}"
   end
   puts ""

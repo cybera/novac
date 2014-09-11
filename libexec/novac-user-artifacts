@@ -42,16 +42,19 @@ db = Mysql2::Client.new(:host => master[:server], :username => master[:username]
 
 # Was a user ID given?
 user_id = nil
-user_query = "select id from keystone.user where id = '#{u}'"
+user_name = nil
+user_query = "select name, id from keystone.user where id = '#{u}'"
 db.query(user_query).each(:as => :hash) do |row|
   user_id = row['id']
+  user_name = row['name']
 end
 
 # Was a user name given?
 unless user_id
-  user_query = "select id from keystone.user where name = '#{u}'"
+  user_query = "select name, id from keystone.user where upper(name) like upper('%#{u}%')"
   db.query(user_query).each(:as => :hash) do |row|
     user_id = row['id']
+    user_name = row['name']
   end
 end
 
@@ -65,7 +68,7 @@ puts "User #{u}"
 puts "ID: #{user_id}"
 puts ""
 
-project_query = "select project.name from keystone.user_project_metadata inner join keystone.user on keystone.user_project_metadata.user_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.user_project_metadata.project_id where keystone.user.id = '#{user_id}' order by project.name"
+project_query = "select project.name from keystone.assignment inner join keystone.user on keystone.assignment.actor_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.      assignment.target_id where keystone.user.id = '#{user_id}' order by project.name"
 project_list = db.query(project_query)
 puts "Projects (#{project_list.count})"
 project_list.each(:as => :hash) do |row|
