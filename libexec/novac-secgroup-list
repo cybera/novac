@@ -7,6 +7,7 @@
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
+require 'projects'
 
 # List of required libraries
 required_libs = ['terminal-table','mysql2']
@@ -26,8 +27,20 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
+projects = Projects.new.projects
+
+project_name = false
+project_type = false
 if ARGV[0]
-  secgroup_pattern = "%#{ARGV[0]}%"
+  if projects.key?(ARGV[0])
+    project_name = ARGV[0]
+    project_type = 'id'
+  elsif projects.values.grep(/ARGV[0]/i)
+    project_name = ARGV[0]
+    project_type = 'name'
+  else
+    secgroup_pattern = "%#{ARGV[0]}%"
+  end
 else
   secgroup_pattern = '%'
 end
@@ -44,11 +57,12 @@ novadb.clouds.each do |region, creds|
     nova     = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
     keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
 
-    # Prepared statements
-    #project_query = keystone.prepare "select name from project where id = ?"
-
+    if project_name != false
+      secgroup_query = "SELECT from_port, to_port, cidr, project_id FROM security_group_rules INNER JOIN security_groups on security_groups.id=security_group_rules.parent_group_id INNER JOIN keystone.project on security_groups.project_id=keystone.project.id WHERE security_group_rules.deleted = 0 AND upper(keystone.project.#{project_type}) like upper('%#{project_name}%')"
+    else
     # Query for all active security groups
-    secgroup_query = "SELECT `from_port`, `to_port`, `cidr`, `project_id` FROM security_group_rules INNER JOIN security_groups ON security_groups.id=security_group_rules.parent_group_id WHERE security_group_rules.deleted = 0 AND security_group_rules.cidr LIKE '#{secgroup_pattern}' AND security_group_rules.from_port != -1;"
+      secgroup_query = "SELECT `from_port`, `to_port`, `cidr`, `project_id` FROM security_group_rules INNER JOIN security_groups ON security_groups.id=security_group_rules.parent_group_id WHERE security_group_rules.deleted = 0 AND security_group_rules.cidr LIKE '#{secgroup_pattern}' AND security_group_rules.from_port != -1;"
+    end
 
     secgroup_rs = nova.query secgroup_query
     secgroup_rs.each do |row|
