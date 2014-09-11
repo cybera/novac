@@ -39,6 +39,20 @@ class Users
     @users.keys
   end
 
+  def projects(user_id)
+    novadb = NovaDB.new
+    cloud = novadb.cloud
+    db = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone')
+    project_query = "select project.name from keystone.assignment inner join keystone.user on keystone.assignment.actor_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.assignment.target_id where keystone.user.id = '#{user_id}' order by project.name"
+
+    projects = []
+    db.query(project_query).each(:as => :hash) do |row|
+      projects << row['name']
+    end
+    db.close
+    return projects
+  end
+
   def list_user_roles(user_id)
     #If a user_id is specified (no nil) return just the one object, otherwiser assume all.
 
@@ -130,5 +144,36 @@ class Users
     table = Terminal::Table.new :headings => headings, :rows => rows
     puts table
     puts "#{rows.length} Users"
+  end
+
+  def fuzzy_search(x)
+
+    return {} if not x
+
+    novadb = NovaDB.new
+    cloud = novadb.cloud
+    db = Mysql2::Client.new( :host => cloud[:server], :username => cloud[:username], :password => cloud[:password], :database => 'keystone')
+    user = {}
+
+    user_query = "select name, id from keystone.user where id = '#{x}'"
+    db.query(user_query).each(:as => :hash) do |row|
+      user[row['id']] = row['name']
+    end
+
+    # Was a user name given?
+    unless user.length > 0
+      user_query = "select name, id from keystone.user where upper(name) like upper('%#{x}%')"
+      db.query(user_query).each(:as => :hash) do |row|
+        user[row['id']] = row['name']
+      end
+    end
+
+    if user.length == 0
+      throw "No user found."
+    elsif user.length > 1
+      throw "More than one project found."
+    else
+      return user
+    end
   end
 end

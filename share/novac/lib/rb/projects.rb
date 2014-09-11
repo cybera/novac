@@ -52,6 +52,34 @@ class Projects
     end
   end
 
+  def fuzzy_search(x)
+
+    return {} if not x
+
+    # All projects
+    projects = self.projects
+    project = {}
+
+    # Was a UUID given?
+    if projects.key?(x)
+      project[x] = projects[x]
+    end
+
+    # Was a project name given?
+    unless project.length > 0
+      project = projects.select { |k, v| v.downcase =~ /#{x.downcase}/ }
+    end
+
+    # Not found at all
+    if project.keys.length == 0
+      throw "No projects found."
+    elsif project.keys.length > 1
+      throw "More than one project found."
+    else
+      return project
+    end
+  end
+
   def project_names
     @projects.values
   end

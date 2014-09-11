@@ -27,6 +27,7 @@ if Process.euid != 0
 end
 
 # Was a project name specified?
+p = nil
 if ARGV[0]
   p = ARGV[0]
 else
@@ -35,27 +36,8 @@ else
 end
 
 # All projects
-projects = Projects.new.projects
-project = {}
-
-# Was a UUID given?
-if projects.key?(p)
-  project[p] = projects[p]
-end
-
-# Was a project name given?
-unless project
-  project = projects.select { |k, v| v.downcase =~ /#{p.downcase}/ }
-end
-
-# Not found at all
-if project.keys.length == 0
-  puts "Project not found"
-  exit 1
-elsif project.keys.length > 1
-  puts "More than one project found. Narrow search."
-  exit 1
-end
+projects = Projects.new
+project = projects.fuzzy_search(p)
 
 # Objects
 novadb = NovaDB.new

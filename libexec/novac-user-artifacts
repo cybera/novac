@@ -8,6 +8,7 @@ $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
 require 'projects'
+require 'users'
 
 required_libs = ['terminal-table','mysql2']
 
@@ -27,6 +28,7 @@ if Process.euid != 0
 end
 
 # Was a project name specified?
+u = nil
 if ARGV[0]
   u = ARGV[0]
 else
@@ -37,40 +39,19 @@ end
 # Objects
 novadb = NovaDB.new
 cloud = novadb.cloud
-
+users = Users.new
 db = Mysql2::Client.new(:host => cloud[:server], :username => cloud[:username], :password => cloud[:password])
 
-# Was a user ID given?
-user_id = nil
-user_name = nil
-user_query = "select name, id from keystone.user where id = '#{u}'"
-db.query(user_query).each(:as => :hash) do |row|
-  user_id = row['id']
-  user_name = row['name']
-end
+user = users.fuzzy_search(u)
+user_name = user.values[0]
+user_id = user.keys[0]
 
-# Was a user name given?
-unless user_id
-  user_query = "select name, id from keystone.user where upper(name) like upper('%#{u}%')"
-  db.query(user_query).each(:as => :hash) do |row|
-    user_id = row['id']
-    user_name = row['name']
-  end
-end
-
-# Nothing found
-unless user_id
-  puts "User not found."
-  exit 1
-end
-
-puts "User #{user_name}"
-puts ""
+puts "User: #{user_name}"
+puts "ID: #{user_id}"
 
 puts "Projects"
-project_query = "select project.name from keystone.assignment inner join keystone.user on keystone.assignment.actor_id = keystone.user.id inner join keystone.project on keystone.project.id = keystone.assignment.target_id where keystone.user.id = '#{user_id}' order by project.name"
-db.query(project_query).each(:as => :hash) do |row|
-  puts "* #{row['name']}"
+users.projects(user_id).each do |project|
+  puts "* #{project}"
 end
 puts ""
 
