@@ -36,18 +36,24 @@ end
 
 # All projects
 projects = Projects.new.projects
+project = {}
 
 # Was a UUID given?
-project = projects[p]
+if projects.key?(p)
+  project[p] = projects[p]
+end
 
 # Was a project name given?
 unless project
-  project = projects.select { |k, v| v == p }
+  project = projects.select { |k, v| v.downcase =~ /#{p.downcase}/ }
 end
 
 # Not found at all
-unless project
+if project.keys.length == 0
   puts "Project not found"
+  exit 1
+elsif project.keys.length > 1
+  puts "More than one project found. Narrow search."
   exit 1
 end
 
@@ -56,9 +62,9 @@ novadb = NovaDB.new
 cloud = novadb.cloud
 
 project_id = project.keys[0]
-project_name = p
+project_name = project[project_id]
 
-puts "Project #{p}"
+puts "Project #{project_name}"
 puts ""
 
 puts "Users"
