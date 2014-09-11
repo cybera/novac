@@ -41,6 +41,8 @@ class Projects
       keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
 
       # Get all users in a certain project
+      # icehouse
+      #users_rs = keystone.query "select actor_id as user_id, user.name as name from assignment inner join user on assignment.actor_id=user.id where assignment.target_id = '#{project_id}'"
       users_rs = keystone.query "select user_id, user.name as name from user_project_metadata inner join user on user_project_metadata.user_id=user.id where project_id = '#{project_id}'"
       users_rs.each do |row|
         @users[row['user_id']] = row['name']
