@@ -29,38 +29,31 @@ end
 
 # Was a project specified?
 if ARGV[0]
-  project = ARGV[0]
+  p = ARGV[0]
 else
-  project = nil
+  p = nil
 end
 
 # create quota object
 quotas = Quotas.new
 
 # Build a list of project quotas
-p = Projects.new
+if p
+  projects = Projects.new.fuzzy_search(p)
+else
+  projects = Projects.new.projects
+end
 
 # Get the quota for each project
 # As well as resources used
 quota = {}
-resources_used = {}
 to_report = {}
+total_usage = {}
 
-if project
-  total_usage = {}
-  p.projects.each do |project_id, project_name|
-    if project_name == project
-      total_usage[project_id] = quotas.used(project_id)
-      to_report[project_id] = project_name
-      quota[project_id] = quotas.project_quota(project_id)
-    end
-  end
-else
-  total_usage = quotas.all_projects_used
-  p.projects.each do |project_id, project_name|
-    to_report[project_id] = project_name
-    quota[project_id] = quotas.project_quota(project_id)
-  end
+projects.each do |project_id, project_name|
+  total_usage[project_id] = quotas.get_project_usage(project_id)
+  to_report[project_id] = project_name
+  quota[project_id] = quotas.project_quota(project_id)
 end
 
 # Report quota usage
@@ -70,10 +63,20 @@ x.each do |project_id, project_name|
   q = quota[project_id].sort_by { |k,v| k }
   q.each do |resource, limit|
     used = 0
-    if total_usage[project_id].has_key?(resource)
-      used = total_usage[project_id][resource]
+    total_usage[project_id]['global'].each do |r, v|
+      if r == resource
+        used = v
+      end
     end
-    #Catch 0 or unlimited quota users
+    total_usage[project_id]['users'].each do |user, user_info|
+      user_info.each do |r, v|
+        if r == resource
+          used += v
+        end
+      end
+    end
+
+    # Catch 0 or unlimited quota users
     if limit.to_f > 0.0
       percent = ((used.to_f / limit.to_f) * 100).to_i
     else
