@@ -22,6 +22,8 @@ collection_output.split("\n").each do |line|
   uuid = pieces.shift
   metric_category = pieces.shift
 
+  next if metric_category == 'instance'
+
   if itop.key?(uuid)
     project_id = itop[uuid]
   else
@@ -35,9 +37,18 @@ collection_output.split("\n").each do |line|
     itop[uuid] = project_id
   end
 
+  metric_subcategory = ''
   pieces.each do |p|
     (k,v) = p.split(':')
-    puts "projects.#{project_id}.instances.#{uuid}.#{metric_category}.#{k} #{v} #{time}"
+    if k == metric_category
+      metric_subcategory = ".#{v}"
+    end
+  end
+
+  pieces.each do |p|
+    (k,v) = p.split(':')
+    next if k == metric_category
+    puts "projects.#{project_id}.instances.#{uuid}.#{metric_category}#{metric_subcategory}.#{k} #{v} #{time}"
   end
 
 end
