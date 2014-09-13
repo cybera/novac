@@ -73,7 +73,6 @@ class Quotas
   # Returns a hash of the project's quota limits
   # Including defaults
   def project_quota(project_id)
-    _connect_to_dbs
     # Connect to the master nova database
     nova = @regions[@master_region]['nova']
     cinder = @regions[@master_region]['cinder']
@@ -164,7 +163,6 @@ class Quotas
 
   # Manually calculates the resources that a user has used in a project
   def user_project_used(user_id, project_id)
-    _connect_to_dbs
     resources = {}
     @regions.each do |region, dbs|
       # These queries are used to manually calculate the resources
@@ -202,13 +200,11 @@ class Quotas
         end
       end
     end
-    _disconnect_from_dbs
     resources
   end
 
   # Manually calculates the resources that a project has used
   def project_used(project_id)
-    _connect_to_dbs
     resources = {}
 
     # Loop through all clouds
@@ -261,7 +257,6 @@ class Quotas
         end
       end
     end
-    _disconnect_from_dbs
     resources
   end
 
