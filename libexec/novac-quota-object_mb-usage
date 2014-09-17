@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'quotas'
+require 'novadb2'
+require 'helpers/quotas'
 
 # variables
 project_id = ARGV[0]
@@ -10,7 +10,7 @@ limit = ARGV[1]
 
 quotas = Quotas.new
 
-object_mb = quotas.calculate_used(project_id)['object_mb']
+object_mb = quotas.object_storage_usage(project_id)['object_mb']
 if object_mb
   puts object_mb
 else

@@ -6,7 +6,7 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'projects'
+require 'helpers/projects'
 
 # https://raw.github.com/stackforge/cookbook-openstack-common/master/libraries/parse.rb
 def prettytable_to_array table

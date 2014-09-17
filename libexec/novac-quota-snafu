@@ -5,22 +5,10 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'quotas'
-require 'projects'
-
-# List of required libraries
-required_libs = ['terminal-table']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/quotas'
+require 'helpers/projects'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -38,7 +26,7 @@ end
 quotas = Quotas.new
 
 # Build a list of project quotas
-p = Projects.new
+projects = Projects.new
 
 # Get the quota for each project
 # As well as resources used
@@ -48,30 +36,34 @@ to_report = {}
 
 if project
   total_usage = {}
-  p.projects.each do |project_id, project_name|
-    if project_name == project
-      total_usage[project_id] = quotas.calculate_used(project_id)
-      to_report[project_id] = project_name
-      quota[project_id] = quotas.project_quota(project_id)
-    end
-  end
+  p = projects.fuzzy_search(project)
+  project_id = p.keys[0]
+  project_name = p.values[0]
+  total_usage[project_id] = quotas.get_project_usage(project_id)
+  to_report[project_id] = project_name
+  quota[project_id] = quotas.project_quota_with_defaults(project_id)
 else
   total_usage = quotas.all_projects_used
-  p.projects.each do |project_id, project_name|
+  projects.projects.each do |project_id, project_name|
     to_report[project_id] = project_name
-    quota[project_id] = quotas.project_quota(project_id)
+    quota[project_id] = quotas.project_quota_with_defaults(project_id)
   end
 end
 
 # Report quota usage
-x = to_report.sort_by { |k,v| v }
-x.each do |project_id, project_name|
+sorted_projects = to_report.sort_by { |k,v| v }
+sorted_projects.each do |project_id, project_name|
   rows = []
   q = quota[project_id].sort_by { |k,v| k }
   q.each do |resource, limit|
     used = 0
-    if total_usage[project_id].has_key?(resource)
-      used = total_usage[project_id][resource]
+    if total_usage[project_id]['global'].key?(resource.to_sym)
+      used = total_usage[project_id]['global'][resource.to_sym]
+    end
+    total_usage[project_id]['users'].each do |user, user_quota_info|
+      if total_usage[project_id]['users'][user].key?(resource.to_sym)
+        used += total_usage[project_id]['users'][user][resource.to_sym]
+      end
     end
     #Catch 0 or unlimited quota users
     if limit.to_f > 0.0

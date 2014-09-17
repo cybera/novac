@@ -6,8 +6,8 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'quotas'
+require 'novadb2'
+require 'helpers/quotas'
 
 # variables
 project_id = ARGV[0]

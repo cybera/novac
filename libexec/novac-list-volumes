@@ -5,20 +5,9 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-
-# List of required libraries
-required_libs = ['terminal-table','mysql2']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -26,45 +15,40 @@ if Process.euid != 0
 end
 
 # Get a list of clouds
-novadb = NovaDB.new
+novadb = NovaDB2.new
+projects = Projects.new.projects
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
 
 rows = {}
+
 master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
+novadb.regions.each do |region, creds|
   begin
-    # Databases
-    cinder = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'cinder' )
-    keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
+    volumes = openstack.volumes_query(region)
+    volumes.each do |row|
 
-    # Query for all active volumes
-    volumes_query = "select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid where status in ('in-use', 'available') order by volumes.display_name, status"
-
-    volumes_rs = cinder.query volumes_query
-    volumes_rs.each do |row|
       # Shorten the Instance ID
-      volume_id_short = row['id'].split('-')[0]
+      volume_id_short = row[:id].split('-')[0]
 
       # Shorten the hostname
-      if row['host']
-        host = row['host'].split('.')[0]
+      if row[:host]
+        host = row[:host].split('.')[0]
       else
         host = ''
       end
 
       # Get the project name
-      project = nil
-      project_rs = keystone.query "select name from project where id = '#{row['project_id']}'"
-      if project_rs.count > 0
-        project = project_rs.first['name']
-      else
-        project = row['project_id']
-      end
+      project = projects[row[:project_id]]
 
       # Build the output row
       if not rows.has_key?(project)
         rows[project] = []
       end
-      rows[project] << [volume_id_short, row['volume'], project, row['status'], row['attach_status'], row['instance'], row['mountpoint'], row['size'], host, region]
+      rows[project] << [volume_id_short, row[:volume], project, row[:status], row[:attach_status], row[:instance], row[:mountpoint], row[:size], host, region]
     end
   end
 end

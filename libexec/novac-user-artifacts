@@ -6,21 +6,9 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'projects'
-require 'users'
-
-required_libs = ['terminal-table','mysql2']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'novadb2'
+require 'helpers/projects'
+require 'helpers/users'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -36,10 +24,13 @@ else
 end
 
 # Objects
-novadb = NovaDB.new
-master = novadb.master_cloud
+novadb = NovaDB2.new
 users = Users.new
-db = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password])
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
 
 user = users.fuzzy_search(u)
 user_name = user.values[0]
@@ -54,23 +45,18 @@ users.projects(user_id).each do |project|
 end
 puts ""
 
-novadb.clouds.each do |region, creds|
-  db.close if db
-  db = Mysql2::Client.new(:host => creds[:server], :username => master[:username], :password => master[:password])
-
-  instances_query = "select instances.id, instances.display_name from nova.instances where instances.user_id = '#{user_id}' and deleted = 0 order by display_name"
-  instance_list = db.query(instances_query)
-  puts "Instances in #{region} (#{instance_list.count})"
-  instance_list.each(:as => :hash) do |row|
-    puts "* #{row['display_name']}"
+novadb.regions.each do |region, creds|
+  rows = openstack.instances_by_user(user_id, region)
+  puts "Instances in #{region} (#{rows.count})"
+  rows.each do |row|
+    puts "* #{row[:display_name]}"
   end
   puts ""
 
-  volumes_query = "select volumes.id, volumes.display_name from cinder.volumes where volumes.user_id = '#{user_id}' and deleted = 0 order by display_name"
-  volume_list = db.query(volumes_query)
-  puts "Volumes in #{region} (#{volume_list.count})"
-  volume_list.each(:as => :hash) do |row|
-    puts "* #{row['display_name']}"
+  rows = openstack.volumes_by_user(user_id, region)
+  puts "Volumes in #{region} (#{rows.count})"
+  rows.each do |row|
+    puts "* #{row[:display_name]}"
   end
   puts ""
 end

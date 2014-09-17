@@ -1,13 +1,13 @@
 #!/usr/bin/env ruby
-# Usage: novac quota-balance
-# # Summary: Balance quotas between regions. This is normally run by cron.
-# # Help: novac balance-quotas
+# Usage: novac quota-sync-usage
+# # Summary: Balance usage between regions. This is normally run by cron.
+# # Help: novac balance-usage
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'novadb'
-require 'quotas'
-require 'projects'
+require 'helpers/quotas'
+require 'helpers/projects'
 
 # List of required libraries
 required_libs = []
@@ -30,4 +30,4 @@ end
 # create quota object
 quotas = Quotas.new
 
-quotas.balance_all_quotas
+quotas.balance_all_usage

@@ -5,9 +5,8 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'quotas'
-require 'projects'
+require 'helpers/quotas'
+require 'helpers/projects'
 require 'parallel'
 
 # Ensure root or sudo is used for this command
@@ -22,23 +21,23 @@ novac = "/root/novac/bin/novac"
 projects = Projects.new
 quotas = Quotas.new
 
-# Balance the quota between regions
-quotas.balance_all_quotas
+# Balance the usage between regions
+quotas.balance_all_usage
 
 Parallel.each(projects.enabled_projects.keys, :in_processes => 12) do |project_id|
   project = projects.projects[project_id]
   next if project == 'admin'
-  limit = quotas.project_quota(project_id)['object_mb']
+  quota = quotas.project_quota(project_id)['object_mb']
   used = quotas.object_storage_usage(project_id)['object_mb']
   used = 0 if not used
-  limit = 0 if not limit
+  quota = 0 if not quota
   # If the user is over quota, set their swift quota to 0 so they can't upload more.
-  if used > limit
+  if used > quota
     command = "\"#{project}\" 0"
-  # If they aren't over quota, set their swift quota to their limit. This effectively
-  # re-enables uploads after the user deletes some files.
+  # If they aren't over quota, set their swift quota to their configured quota.
+  # This effectively re-enables uploads after the user deletes some files.
   else
-    quota_in_bytes = limit * 1024 * 1024
+    quota_in_bytes = quota * 1024 * 1024
     command = "\"#{project}\" #{quota_in_bytes}"
   end
 

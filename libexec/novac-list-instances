@@ -7,82 +7,50 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-
-# List of required libraries
-required_libs = ['terminal-table','mysql2']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-# Get a list of clouds
-novadb = NovaDB.new
-clouds = novadb.clouds
+novadb = NovaDB2.new
 
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+projects = Projects.new.projects
 rows = []
-master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
+
+novadb.regions.each do |region|
   begin
-    # Databases
-    nova     = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova')
-    keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone')
-    glance   = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'glance')
+    instances = openstack.instances_query(region)
+    instances.each do |row|
 
-    # Prepared statements - proper ones aren't part of mysql2
-    user_query    = "select name from user where id = "
-    project_query = "select name from project where id = "
-    image_query   = "select name from images where id = "
-    ec2_query     = "select id from instance_id_mappings where uuid = "
-
-    # Query for all running instances
-    instances_query = "select uuid, user_id, instances.project_id, hostname, instances.host, image_ref, fixed_ips.address as fixed_ip, floating_ips.address as floating_ip, vm_state, instance_types.name as flavor, key_name from instances inner join instance_types on instances.instance_type_id=instance_types.id inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id where instances.deleted = 0"
-
-    instance_rs = nova.query instances_query
-    instance_rs.each do |row|
       # Shorten the Instance ID
-      instance_id_short = row['uuid'].split('-')[0]
+      instance_id_short = row[:uuid].split('-')[0]
 
       # Shorten the host
-      host_short = row['host'].split('.')[0]
+      host_short = row[:host].split('.')[0]
 
       # Get user name
-      user = nil
-      user_rs = keystone.query(user_query + "'" + row['user_id'] + "'")
-      if (user_rs.count > 0)
-        user = user_rs.first['name']
-      else
-        user = row['user_id']
-      end
+      user = openstack.user_by_id(row[:user_id])[:name]
 
       # Project name
-      project = nil
-      project_rs = keystone.query(project_query + "'" + row['project_id'] + "'")
-      if (project_rs.count > 0)
-        project = project_rs.first['name']
-      else
-        project = row['project_id']
-      end
+      project = projects[row[:project_id]]
 
       # Image name
-      image = glance.query(image_query + "'" + row['image_ref'] + "'").first['name']
+      image = openstack.image_by_id(row[:image_ref])[:name]
 
       # ec2 id
-      ec2_id = nova.query(ec2_query + "'" + row['uuid'] + "'").first['id'].to_s(base=16).rjust(8, '0')
+      ec2_id = openstack.ec2_query(row[:uuid], region).to_s(base=16).rjust(8, '0')
 
       # Build the output row
-      rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], row['key_name'], image]
+      rows << [instance_id_short, project, user, region, row[:hostname], ec2_id, host_short, row[:fixed_ip], row[:floating_ip], row[:vm_state], row[:flavor], row[:key_name], image]
     end
   end
 end

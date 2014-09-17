@@ -1,23 +1,13 @@
 #!/usr/bin/env ruby
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'quotas'
+require 'novadb2'
+require 'helpers/quotas'
 require 'logger'
+require 'eventmachine'
+require 'amqp'
+require 'json'
 require 'pp'
-
-# List of required libraries
-required_libs = ['eventmachine', 'amqp', 'json']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -27,9 +17,8 @@ end
 # Create a logger
 logger = Logger.new('/var/log/nova/quotas.log')
 
-# Get the rabbitmq queues
-novadb = NovaDB.new
-queues = novadb.queues
+# Create the novadb object
+novadb = NovaDB2.new
 
 # Create a quota object
 quota = Quotas.new
@@ -56,8 +45,9 @@ end
 begin
   EventMachine.run do
     logger.info('EventMachine started')
-    queues.each do |region, creds|
-      conn = AMQP.connect(creds)
+    novadb.regions.each do |region|
+      queue_info = novadb.get_queue(region)
+      conn = AMQP.connect(queue_info['nova'])
       ch   = AMQP::Channel.new(conn)
       ex   = ch.topic('nova')
 
@@ -79,8 +69,8 @@ begin
                 project_id = p['payload']['owner']
               end
               if project_id
-                logger.info("Balancing quotas for #{project_id}")
-                quota.balance_quotas(project_id)
+                logger.info("Balancing usage for #{project_id}")
+                quota.balance_usage(project_id)
               end
             end
           end

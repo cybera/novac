@@ -3,9 +3,8 @@ $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'time'
 require 'date'
-require 'novadb'
-require 'projects'
-require 'mysql'
+require 'novadb2'
+require 'helpers/projects'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -20,6 +19,7 @@ IMAGES = {
   '0decc679-e437-487f-8077-3c89b32fae58' => 'Windows 2008 R2',
   '87ef156c-de7f-4760-ae1f-2f04d041728e' => 'Windows 2008 R2',
   '086f3cec-4921-4df2-a681-aeea7e09e5b5' => 'Windows 2008 R2',
+  '5d5e796d-b745-4ea8-8549-d073ea787c24' => 'Windows 2008 R2',
 }
 
 # Parse the command-line arguments
@@ -50,19 +50,23 @@ end_date += 86399
 
 tenants = {}
 projects = Projects.new
-novadb = NovaDB.new
-master = novadb.master_cloud
-novadb.clouds.each do |region,creds|
-  nova   = Mysql.new creds[:server], creds[:username], creds[:password], 'nova'
-  glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
+novadb = NovaDB2.new
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+novadb.regions.each do |region,creds|
   # Query for all instances launched after Jan 1 2013
-  event_rs = nova.query "select * from instances where date(created_at) >= '#{jan1_date}' order by created_at"
-  event_rs.each_hash do |row|
-    image_ref = row['image_ref']
+  openstack.instance_launches_since_jan2013(region).each do |row|
+    image_ref = row[:image_ref]
     # If the image is a snapshot, get the base_image_ref
-    image_rs = glance.query "select value from image_properties where image_id = '#{image_ref}' and name ='base_image_ref'"
-    if image_rs.num_rows > 0
-      image_ref = image_rs.fetch_row[0]
+    image_properties = openstack.image_properties_query(image_ref)
+    image_properties.each do |image_property|
+      if image_property[:name] == 'base_image_ref'
+        image_ref = image_property[:value]
+      end
     end
 
     # Was the instance a windows image?
@@ -71,33 +75,33 @@ novadb.clouds.each do |region,creds|
       instance = {}
 
       # Get the starting time of the instance
-      instance_start = Time.parse(row['created_at'])
-      instance_id = row['uuid']
-      instance['instance_id'] = instance_id
-      instance['start'] = instance_start
-      instance['end'] = Time.at(end_date)
-      instance['duration'] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
+      instance_start = Time.parse(row[:created_at])
+      instance_id = row[:uuid]
+      instance[:instance_id] = instance_id
+      instance[:start] = instance_start
+      instance[:end] = Time.at(end_date)
+      instance[:duration] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
 
       # If the instance was terminated
-      if (row['vm_state'] == 'deleted')
-        next if not row['terminated_at']
-        instance_end = Time.parse(row['terminated_at'])
-        instance['end'] = instance_end
-        if instance['end'].to_i <= end_date
-          instance['duration'] = ((instance_end - instance_start) / 60).to_i / 60
+      if (row[:vm_state] == 'deleted')
+        next if not row[:terminated_at]
+        instance_end = Time.parse(row[:terminated_at])
+        instance[:end] = instance_end
+        if instance[:end].to_i <= end_date
+          instance[:duration] = ((instance_end - instance_start) / 60).to_i / 60
         else
-          instance['duration'] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
+          instance[:duration] = ((Time.at(end_date) - instance_start) / 60).to_i / 60
         end
       end
 
       # Filter unwanted instances
-      next if instance['start'].to_i > end_date
-      next if (instance['end'] and instance['end'].to_i < start_date)
+      next if instance[:start].to_i > end_date
+      next if (instance[:end] and instance[:end].to_i < start_date)
       #next if (instance['end'] and instance['end'].to_i > end_date)
-      next if instance['duration'] < 1
+      next if instance[:duration] < 1
 
       # Add an entry to the tenants hash
-      tenant = projects.projects[row['project_id']]
+      tenant = projects.projects[row[:project_id]]
       tenants[tenant] = [] if ! tenants.has_key?(tenant)
       tenants[tenant].push(instance)
 
@@ -112,15 +116,15 @@ tenants.each do |tenant, instances|
   x = {}
   instances.each do |instance|
     # Print out the info
-    if instance['end']
+    if instance[:end]
       end_print = 'Still Running'
-      if instance['end'] != Time.at(end_date) and instance['end'].to_i <= end_date
-        end_print = instance['end'].strftime("%Y-%m-%d %H:%M")
+      if instance[:end] != Time.at(end_date) and instance[:end].to_i <= end_date
+        end_print = instance[:end].strftime("%Y-%m-%d %H:%M")
       end
     end
     #end_print = instance['end'] != Time.at(end_date) ? instance['end'].strftime("%Y-%m-%d %H:%M") : 'Still Running'
-    start_print = instance['start'].strftime("%Y-%m-%d %H:%M")
-    hours = instance['duration']
+    start_print = instance[:start].strftime("%Y-%m-%d %H:%M")
+    hours = instance[:duration]
     printf("%-20s %-20s %-20s %-20s\n", '', start_print, end_print, hours)
   end
 
@@ -129,8 +133,8 @@ tenants.each do |tenant, instances|
   overlap = 0
   x = 0
   instances.each do |instance|
-    intervals << "#{instance['start'].to_i} S"
-    intervals << "#{instance['end'].to_i} E"
+    intervals << "#{instance[:start].to_i} S"
+    intervals << "#{instance[:end].to_i} E"
   end
   intervals.sort!.each do |i|
     x += 1 if i.split(/\s+/)[1] == 'S'

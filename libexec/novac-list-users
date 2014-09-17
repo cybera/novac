@@ -6,9 +6,7 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'projects'
-require 'users'
+require 'helpers/users'
 
 required_libs = ['terminal-table','mysql2']
 
@@ -27,7 +25,7 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-#Load Users and Projects
+# Load Users and Projects
 users = Users.new
 
 # Was a user ID specified (ID or 'all')
@@ -37,4 +35,15 @@ else
   user = nil
 end
 
-users.list_user_roles(user)
+require 'pp'
+rows = []
+headings = ['ID', 'Username', 'Project', 'Role']
+users.list_user_roles(user).each do |user, projects|
+  projects.each do |project, project_info|
+    next if ['nova', 'glance', 'cinder', 'swift', 'admin'].include?(users.users[user])
+    #next if ['_member_', 'Member'].include?(project_info['role_name'])
+    rows << [user, users.users[user], project_info['project_name'], project_info['role_name']]
+  end
+end
+
+puts Terminal::Table.new :headings => headings, :rows => rows

@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'helpers/quotas'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or sudo."
+end
+
+# create quota object
+quotas = Quotas.new
+
+quotas.sync_all_quotas

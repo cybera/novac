@@ -6,21 +6,9 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'projects'
-
-# List of required libraries
-required_libs = ['terminal-table','mysql2']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
@@ -29,52 +17,32 @@ end
 
 projects = Projects.new.projects
 
-project_name = false
-project_type = false
+p = nil
 if ARGV[0]
-  if projects.key?(ARGV[0])
-    project_name = ARGV[0]
-    project_type = 'id'
-  elsif projects.values.grep(/ARGV[0]/i)
-    project_name = ARGV[0]
-    project_type = 'name'
-  else
-    secgroup_pattern = "%#{ARGV[0]}%"
-  end
+  p = ARGV[0]
 else
-  secgroup_pattern = '%'
+  puts "Project name or ID is required"
+  exit 1
 end
 
-# Get a list of clouds
-novadb = NovaDB.new
-clouds = novadb.clouds
+# Objects
+projects = Projects.new
+novadb = NovaDB2.new
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+# Get the project id
+project = projects.fuzzy_search(p)
+project_id = project.keys[0]
+project_name = project.values[0]
 
 rows = []
-master = novadb.master_cloud
-novadb.clouds.each do |region, creds|
-  begin
-    # Databases
-    nova     = Mysql2::Client.new( :host => creds[:server], :username => creds[:username], :password => creds[:password], :database => 'nova' )
-    keystone = Mysql2::Client.new( :host => master[:server], :username => master[:username], :password => master[:password], :database => 'keystone' )
-
-    if project_name != false
-      secgroup_query = "SELECT from_port, to_port, cidr, project_id FROM security_group_rules INNER JOIN security_groups on security_groups.id=security_group_rules.parent_group_id INNER JOIN keystone.project on security_groups.project_id=keystone.project.id WHERE security_group_rules.deleted = 0 AND upper(keystone.project.#{project_type}) like upper('%#{project_name}%')"
-    else
-    # Query for all active security groups
-      secgroup_query = "SELECT `from_port`, `to_port`, `cidr`, `project_id` FROM security_group_rules INNER JOIN security_groups ON security_groups.id=security_group_rules.parent_group_id WHERE security_group_rules.deleted = 0 AND security_group_rules.cidr LIKE '#{secgroup_pattern}' AND security_group_rules.from_port != -1;"
-    end
-
-    secgroup_rs = nova.query secgroup_query
-    secgroup_rs.each do |row|
-      # Project name
-      keystone.query("select name from project where id = '#{row['project_id']}'").each do |project_row|
-        project = project_row['name']
-
-        # Build the output row
-        #rows << [instance_id_short, project, user, region, row['hostname'], ec2_id, host_short, row['fixed_ip'], row['floating_ip'], row['vm_state'], row['flavor'], row['key_name'], image]
-        rows << [ project, row['from_port'], row['to_port'], row['cidr'] ]
-      end
-    end
+novadb.regions.each do |region, creds|
+  openstack.secgroups_by_project(project_id, region).each do |row|
+    rows << [ project_name, row[:from_port], row[:to_port], row[:cidr] ]
   end
 end
 

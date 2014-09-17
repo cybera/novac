@@ -3,83 +3,63 @@
 # Summary: List all images and snapshots
 # Help: Lists all images and snapshots on DAIR
 
-
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-
-# List of required libraries
-required_libs = ['terminal-table','mysql2']
-
-# Try to load each of the libraries
-# Fail if unable to and list what libs are needed
-begin
-  required_libs.each { |l| require l }
-rescue LoadError
-  puts "This script needs the following external libraries: "
-  required_libs.each { |l| puts " * #{l}" }
-  exit 1
-end
+require 'terminal-table'
+require 'novadb2'
 
 # Ensure root or sudo is used for this command
 if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-# Get a list of clouds
-novadb = NovaDB.new
+novadb = NovaDB2.new
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
 
 rows = []
-master = novadb.master_cloud
-# Database
-#glance = Mysql.new master[:server], master[:username], master[:password], 'glance'
-glance = Mysql2::Client.new(:host => master[:server], :username => master[:username], :password => master[:password], :database => 'glance')
 
-# Query for all active images
-images_query = "select images.id, images.name as image_name, size, is_public, project.name as tenant_name from glance.images inner join keystone.project on keystone.project.id=glance.images.owner where glance.images.status = 'active' order by project.name"
-
-images_rs = glance.query(images_query)
-images_rs.each(:as => :hash) do |row|
+openstack.images_query.each do |row|
 
   # Get some extra data about the image
   base_image_ref = nil
   is_snapshot = 'No'
-  image_query = "select name, value from image_properties where image_id = '#{row['id']}'"
-  image_rs = glance.query(image_query)
-  image_rs.each do |image_row|
-    case image_row['name']
+  openstack.image_properties_query(row[':id']).each do |image_row|
+    case image_row[:name]
     when 'image_location'
-      if image_row['value'] == 'snapshot'
+      if image_row[:value] == 'snapshot'
         is_snapshot = 'Yes'
       end
     when 'base_image_ref'
-      base_image_ref = image_row['value']
+      base_image_ref = image_row[:value]
     end
   end
 
   # Shorten the Instance ID
-  images_id_short = row['id'].split('-')[0]
+  images_id_short = row[:id].split('-')[0]
 
   # Yes/no for public
-  if row['is_public'] == "1"
+  if row[:is_public] == "1"
     is_public = 'Yes'
   else
     is_public = 'No'
   end
 
   # Size in GB
-  size = sprintf("%.2f", (row['size'].to_i / 1024 / 1024 / 1024.0))
+  size = sprintf("%.2f", (row[:size].to_i / 1024 / 1024 / 1024.0))
 
   # Get the base image
   if base_image_ref
-    base_query = glance.query "select name from images where id = '#{base_image_ref}'"
-    base_image_name = base_query.each(:as => :hash).first['name']
+    base_image_name = openstack.image_properties_query(base_image_ref).first[:name]
   else
     base_image_name = nil
   end
 
   # Build the output row
-  rows << [images_id_short, row['image_name'], row['tenant_name'], is_snapshot, base_image_name, size, is_public]
+  rows << [images_id_short, row[:image_name], row[:tenant_name], is_snapshot, base_image_name, size, is_public]
 end
 
 # Print report
