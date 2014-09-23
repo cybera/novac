@@ -216,6 +216,7 @@ class Quotas
   # Called by cron and/or novac
   def balance_all_usage
     total_usage = all_projects_used()
+    require 'pp'
     sync_all_used(total_usage)
   end
 
@@ -282,19 +283,26 @@ class Quotas
   def sync_all_used(total_usage)
     @novadb.regions.each do |region|
       Parallel.each(total_usage.keys) do |project_id|
-        total_usage[project_id].each do |resource, in_use|
+        total_usage[project_id]['global'].each do |resource, in_use|
           set_project_used_resource(project_id, region, resource, in_use)
+        end
+      end
+      total_usage.keys.each do |project_id|
+        total_usage[project_id]['users'].each do |user_id, user_info|
+          Parallel.each(total_usage[project_id]['users'][user_id]) do |resource, in_use|
+            set_project_used_resource(project_id, region, resource, in_use, user_id)
+          end
         end
       end
     end
   end
 
   # Sets a project's resource usage in a region
-  def set_project_used_resource(project_id, region, resource, in_use)
+  def set_project_used_resource(project_id, region, resource, in_use, user_id = nil)
     if resource == 'volumes' or resource == 'gigabytes'
       @openstack.cinder_set_project_used(project_id, resource, in_use, region)
     else
-      @openstack.nova_set_project_used(project_id, resource, in_use, region)
+      @openstack.nova_set_project_used(project_id, resource, in_use, user_id, region)
     end
   end
 

@@ -131,22 +131,29 @@ class Icehouse
     end
   end
 
-  def nova_set_project_used(project_id, resource, in_use, region = nil)
+  def nova_set_project_used(project_id, resource, in_use, user_id = nil, region = nil)
+    require 'pp'
+
+    if not user_id
+      user_id = 'NULL'
+    end
+
     db = @novadb.get_database('nova', region)
     count = db.fetch("
               select count(*) as c
-              from quotas_usages
-              where project_id = '#{project_id}' and resource = '#{resource}'
-            ")[0][:c].to_i
-    if count == 1
-      ds = db['update quotas_usages set in_use = ? where resource = ? and project_id = ?',
-              in_use, resource, project_id
-           ]
+              from quota_usages
+              where project_id = '#{project_id}' and resource = '#{resource}' and user_id = '#{user_id}'
+            ")
+    c = -1
+    count.each do |row|
+      c = row[:c].to_i
+    end
+    if c == 1
+      ds = db["update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"]
       ds.update
-    elsif count == 0
-      ds = db['insert into quotas_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use)
-               values (now(), now(), 0, 0, ?, ?, ?)',
-               project_id, resource, in_use
+    elsif c == 0
+      ds = db["insert into quota_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use, user_id)
+               values (now(), now(), 0, 0, '#{project_id}', '#{resource}', '#{in_use}', '#{user_id}'"
            ]
       ds.insert
     else
@@ -361,18 +368,15 @@ class Icehouse
     db = @novadb.get_database('cinder', region)
     count = db.fetch("
               select count(*) as c
-              from quotas_usages
+              from quota_usages
               where project_id = '#{project_id}' and resource = '#{resource}'
             ")[0][:c].to_i
     if count == 1
-      ds = db['update quotas_usages set in_use = ? where resource = ? and project_id = ?',
-              in_use, resource, project_id
-           ]
+      ds = db["update quota_usages set in_use = '#{in_use} where resource = '#{resource}' and project_id = '#{project_id}'"]
       ds.update
     elsif count == 0
-      ds = db['insert into quotas_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use)
-               values (now(), now(), 0, 0, ?, ?, ?)',
-               project_id, resource, in_use
+      ds = db["insert into quota_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use)
+               values (now(), now(), 0, 0, '#{project_id}', '#{resource}', '#{in_use}')"
            ]
       ds.insert
     else

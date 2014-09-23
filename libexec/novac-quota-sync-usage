@@ -5,7 +5,7 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
+require 'novadb2'
 require 'helpers/quotas'
 require 'helpers/projects'
 
