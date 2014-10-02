@@ -38,6 +38,7 @@ user_id = user.keys[0]
 
 puts "User: #{user_name}"
 puts "ID: #{user_id}"
+puts ""
 
 puts "Projects"
 users.projects(user_id).each do |project|
