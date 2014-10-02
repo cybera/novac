@@ -2,6 +2,10 @@
 
 novac is a collection of scripts that assist with day-to-day OpenStack Operations. It's very site-specific to the clouds that Cybera deploys, but you may find it useful.
 
+## Installation
+
+See the [novac](https://github.com/jtopjian/puppet-novac) Puppet module for an easy way to deploy and configure novac. The module is focused on the latest "icehouse" branch.
+
 ## Branches
 
 Dev = Grizzly based Cloud
