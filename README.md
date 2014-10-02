@@ -1,13 +1,16 @@
 # Novac
 
-Readme type text should go here.
+novac is a collection of scripts that assist with day-to-day OpenStack Operations. It's very site-specific to the clouds that Cybera deploys, but you may find it useful.
 
 ## Branches
 
-Dev = Grizzly based Cloud  
+Dev = Grizzly based Cloud
 Cloud = Havana based Cloud
+Icehouse = Icehouse based Clouds
 
 ## Commands
+
+The Dev and Cloud branches are very different. It's recommended to use the Icehouse branch as it is now able to accommodate deployments of different configurations. It's also able to support different versions of OpenStack by writing appropriate queries in `share/novac/lib/rb/openstack`.
 
 Commands | Cloud | Dev
 ------- | ----------- | ----------
@@ -38,11 +41,5 @@ swift-set-quota | BROKEN  | Good
 user-artifacts | Good | Good
 windows-audit | Good | Good
 
-## Additional Features
-
-Feature | RAC (cloud) | DAIR (dev)
-------- | ----------- | ----------
-Quota Threading | ? | ?
-
-Last Checked: 2014-08-25
+Last Checked: 2014-10-02
 
