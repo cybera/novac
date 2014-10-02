@@ -269,9 +269,11 @@ class Icehouse
 
   # Cinder
   def volumes_query(region = nil)
+    cinder_db = @novadb.get_database_name('cinder', region)
+    nova_db = @novadb.get_database_name('nova', region)
     @novadb.get_database('cinder', region).fetch("
       select volumes.id as id, volumes.project_id as project_id, size, instances.host as host, instances.display_name as instance, mountpoint, status, attach_status, volumes.display_name as volume
-      from volumes left join nova.instances on cinder.volumes.instance_uuid=nova.instances.uuid
+      from volumes left join #{nova_db}.instances on #{cinder_db}.volumes.instance_uuid=#{nova_db}.instances.uuid
       where status in ('in-use', 'available') order by volumes.display_name, status
     ")
   end

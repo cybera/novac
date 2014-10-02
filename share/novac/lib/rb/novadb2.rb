@@ -77,6 +77,19 @@ class NovaDB2
     end
   end
 
+  def get_database_name(db, region = nil)
+    require 'pp'
+    if not region
+      @clouds.keys.each do |region|
+        if @clouds[region]['mysql'][db].key?(:master)
+          return @clouds[region]['mysql'][db][:database]
+        end
+      end
+    else
+      return @clouds[region]['mysql'][db][:database]
+    end
+  end
+
   def get_queue(region)
     @clouds[region]['rabbitmq']
   end
