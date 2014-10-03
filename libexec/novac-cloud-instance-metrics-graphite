@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'mysql2'
+require 'rubygems'
+require 'novadb2'
+require 'pp'
+
+novadb = NovaDB2.new
+now = Time.now
+time = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
+region = %x{ facter location }.chomp
+db = novadb.clouds[region]['mysql']['nova']
+itop = {}
+
+nova = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => "nova_#{region}" )
+
+instances = {}
+collection_output = %x{ dsh -g cnodes /usr/local/bin/instance_metrics.rb 2> /dev/null }
+collection_output.split("\n").each do |line|
+  pieces = line.split(/\s+/)
+  uuid = pieces.shift
+  metric_category = pieces.shift
+
+  next if metric_category == 'instance'
+
+  if itop.key?(uuid)
+    project_id = itop[uuid]
+  else
+    project_query = "select project_id from instances where uuid = '#{uuid}'"
+    project_query_rs = nova.query project_query
+    if project_query_rs.count == 1
+      project_id = project_query_rs.first['project_id']
+    else
+      next
+    end
+    itop[uuid] = project_id
+  end
+
+  metric_subcategory = ''
+  pieces.each do |p|
+    (k,v) = p.split(':')
+    if k == metric_category
+      metric_subcategory = ".#{v}"
+    end
+  end
+
+  pieces.each do |p|
+    (k,v) = p.split(':')
+    next if k == metric_category
+    puts "projects.#{project_id}.instances.#{uuid}.#{metric_category}#{metric_subcategory}.#{k} #{v} #{time}"
+  end
+
+end
