@@ -176,7 +176,7 @@ class Icehouse
            ]
       ds.insert
     else
-      throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count} entries for #{resource}"
+      throw "Unable to update #{resource} to #{in_use}. Project #{project_id}, user #{user_id} has #{count} entries for #{resource}"
     end
   end
 
@@ -393,7 +393,7 @@ class Icehouse
               where project_id = '#{project_id}' and resource = '#{resource}'
             ").first[:c].to_i
     if count == 1
-      ds = db["update quota_usages set in_use = '#{in_use} where resource = '#{resource}' and project_id = '#{project_id}'"]
+      ds = db["update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"]
       ds.update
     elsif count == 0
       ds = db["insert into quota_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use)

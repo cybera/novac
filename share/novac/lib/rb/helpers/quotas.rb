@@ -202,10 +202,10 @@ class Quotas
 
   # Balance quotas in each region for a single project
   # Used by quota-daemon
-  def balance_usage(project_id)
+  def balance_usage_for_project(project_id)
     total_usage = {}
     total_usage[project_id] = get_project_usage(project_id)
-    sync_all_used(total_usage)
+    sync_all_used_serial(total_usage)
   end
 
 
@@ -213,7 +213,6 @@ class Quotas
   # Called by cron and/or novac
   def balance_all_usage
     total_usage = all_projects_used()
-    require 'pp'
     sync_all_used(total_usage)
   end
 
@@ -286,6 +285,22 @@ class Quotas
       total_usage.keys.each do |project_id|
         total_usage[project_id]['users'].each do |user_id, user_info|
           Parallel.each(total_usage[project_id]['users'][user_id]) do |resource, in_use|
+            set_project_used_resource(project_id, region, resource, in_use, user_id)
+          end
+        end
+      end
+    end
+  end
+
+  # Same as above but does not use parallel
+  def sync_all_used_serial(total_usage)
+    @novadb.regions.each do |region|
+      total_usage.keys.each do |project_id|
+        total_usage[project_id]['global'].each do |resource, in_use|
+          set_project_used_resource(project_id, region, resource, in_use)
+        end
+        total_usage[project_id]['users'].each do |user_id, user_info|
+          total_usage[project_id]['users'][user_id].each do |resource, in_use|
             set_project_used_resource(project_id, region, resource, in_use, user_id)
           end
         end
