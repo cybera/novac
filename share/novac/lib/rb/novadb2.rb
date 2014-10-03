@@ -43,8 +43,6 @@ class NovaDB2
   end
 
   def _connect_to_dbs
-    regions = @clouds.keys
-
     @clouds.each do |region, region_info|
       unless @clouds[region].key?('db')
         @clouds[region]['db'] = {}
@@ -67,9 +65,9 @@ class NovaDB2
     _connect_to_dbs
 
     if not region
-      @clouds.keys.each do |region|
-        if @clouds[region]['mysql'][db].key?(:master)
-          return @clouds[region]['db'][db]
+      @clouds.keys.each do |r|
+        if @clouds[r]['mysql'][db][:master] == true
+          return @clouds[r]['db'][db]
         end
       end
     else
@@ -80,9 +78,9 @@ class NovaDB2
   def get_database_name(db, region = nil)
     require 'pp'
     if not region
-      @clouds.keys.each do |region|
-        if @clouds[region]['mysql'][db].key?(:master)
-          return @clouds[region]['mysql'][db][:database]
+      @clouds.keys.each do |r|
+        if @clouds[r]['mysql'][db][:master] == true
+          return @clouds[r]['mysql'][db][:database]
         end
       end
     else
@@ -95,11 +93,7 @@ class NovaDB2
   end
 
   def master_region?(db, region)
-    @clouds.keys.each do |region|
-      if @clouds[region]['mysql'][db].key?(:master)
-        return true
-      end
-    end
+    return @clouds[region]['mysql'][db][:master]
   end
 
   def regions

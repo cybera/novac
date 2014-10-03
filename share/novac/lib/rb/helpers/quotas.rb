@@ -186,9 +186,6 @@ class Quotas
         total_usage.merge!(y)
       end
       total_usage
-    rescue
-      puts "Could not complete calculating used resources. This might have been due to a network error. If you see this message more than once, please look into this in more detail. If you are on-call, this is not an emergency."
-      exit 1
     end
   end
 
@@ -235,7 +232,7 @@ class Quotas
 
   # Sets a non-default limit for a certain resource for a single project in a single region
   def set_project_quota(project_id, region, resource, limit)
-    if resource == 'volumes' or resource == 'gigabytes'
+    if resource == 'volumes' or resource == 'gigabytes' or resource == 'snapshots'
       @openstack.cinder_set_project_quota(project_id, resource, limit, region)
     else
       @openstack.nova_set_project_quota(project_id, resource, limit, region)
@@ -270,7 +267,6 @@ class Quotas
       Parallel.each(tmp_project_limits.keys) do |project_id|
         tmp_project_limits[project_id].each do |resource, limit|
           limit = tmp_project_limits[project_id][resource]
-          #puts "#{project_id} #{region} sync #{resource} #{limit}"
           set_project_quota(project_id, region, resource, limit)
         end
       end
@@ -282,8 +278,8 @@ class Quotas
   # Calls the below function for each project, region, and resource
   def sync_all_used(total_usage)
     @novadb.regions.each do |region|
-      Parallel.each(total_usage.keys) do |project_id|
-        total_usage[project_id]['global'].each do |resource, in_use|
+      total_usage.keys.each do |project_id|
+        Parallel.each(total_usage[project_id]['global']) do |resource, in_use|
           set_project_used_resource(project_id, region, resource, in_use)
         end
       end
@@ -299,7 +295,7 @@ class Quotas
 
   # Sets a project's resource usage in a region
   def set_project_used_resource(project_id, region, resource, in_use, user_id = nil)
-    if resource == 'volumes' or resource == 'gigabytes'
+    if resource == :volumes or resource == :gigabytes or resource == :snapshots
       @openstack.cinder_set_project_used(project_id, resource, in_use, region)
     else
       @openstack.nova_set_project_used(project_id, resource, in_use, user_id, region)

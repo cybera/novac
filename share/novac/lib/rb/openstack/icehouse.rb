@@ -114,7 +114,7 @@ class Icehouse
               select count(*) as c
               from quotas
               where project_id = '#{project_id}' and resource = '#{resource}'
-            ")[0][:c].to_i
+            ").first[:c].to_i
     if count == 1
       ds = db['update quotas set hard_limit = ? where resource = ? and project_id = ?',
               limit, resource, project_id
@@ -132,28 +132,47 @@ class Icehouse
   end
 
   def nova_set_project_used(project_id, resource, in_use, user_id = nil, region = nil)
-    require 'pp'
+    db = @novadb.get_database('nova', region)
+
+    user_id_select = nil
+    user_id_insert = nil
+    user_id_update = nil
 
     if not user_id
-      user_id = 'NULL'
+      user_id_select = 'user_id is NULL'
+      user_id_insert = 'NULL'
+      user_id_update = 'user_id is NULL'
+    else
+      user_id_select = "user_id = '#{user_id}'"
+      user_id_insert = "'#{user_id}'"
+      user_id_update = "user_id = '#{user_id}'"
     end
 
-    db = @novadb.get_database('nova', region)
+    # Check to see if the current value is the same.
+    # This should save on resources
     count = db.fetch("
               select count(*) as c
               from quota_usages
-              where project_id = '#{project_id}' and resource = '#{resource}' and user_id = '#{user_id}'
-            ")
-    c = -1
-    count.each do |row|
-      c = row[:c].to_i
+              where project_id = '#{project_id}' and resource = '#{resource}' and in_use = '#{in_use}' and #{user_id_select}
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{in_use} #{region}"
+      return true
     end
-    if c == 1
-      ds = db["update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"]
+
+    count = db.fetch("
+              select count(*) as c
+              from quota_usages
+              where project_id = '#{project_id}' and resource = '#{resource}' and #{user_id_select}
+            ").first[:c].to_i
+    if count == 1
+      #puts "#{project_id} #{resource} #{in_use} #{user_id_update} #{region} #{count} update"
+      ds = db["update quota_usages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}' and #{user_id_update}"]
       ds.update
-    elsif c == 0
+    elsif count == 0
+      #puts "#{project_id} #{resource} #{in_use} #{user_id_insert} #{region} #{count} insert"
       ds = db["insert into quota_usages (created_at, updated_at, deleted, reserved, project_id, resource, in_use, user_id)
-               values (now(), now(), 0, 0, '#{project_id}', '#{resource}', '#{in_use}', '#{user_id}'"
+               values (now(), now(), 0, 0, '#{project_id}', '#{resource}', '#{in_use}', #{user_id_insert})"
            ]
       ds.insert
     else
@@ -349,7 +368,7 @@ class Icehouse
               select count(*) as c
               from quotas
               where project_id = '#{project_id}' and resource = '#{resource}'
-            ")[0][:c].to_i
+            ").first[:c].to_i
     if count == 1
       ds = db['update quotas set hard_limit = ? where resource = ? and project_id = ?',
               limit, resource, project_id
@@ -372,7 +391,7 @@ class Icehouse
               select count(*) as c
               from quota_usages
               where project_id = '#{project_id}' and resource = '#{resource}'
-            ")[0][:c].to_i
+            ").first[:c].to_i
     if count == 1
       ds = db["update quota_usages set in_use = '#{in_use} where resource = '#{resource}' and project_id = '#{project_id}'"]
       ds.update
