@@ -240,7 +240,7 @@ class Icehouse
       select *
       from images
       where id = '#{image_id}'
-    ")
+    ").first
   end
 
   def images_by_owner(project_id, region = nil)
