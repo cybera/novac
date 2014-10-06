@@ -4,7 +4,7 @@ require 'sequel'
 class Icehouse
 
   def initialize
-    @novadb = NovaDB2.new
+    @novadb = NovaDB2.instance
   end
 
   # Nova

@@ -1,8 +1,10 @@
+require 'singleton'
 require 'inifile'
 require 'sequel'
 require 'pp'
 
 class NovaDB2
+  include Singleton
 
   attr_accessor :master_cloud, :master_region, :clouds, :queues
 
@@ -34,6 +36,9 @@ class NovaDB2
               @clouds[region][type][x][k.to_sym] = v
             end
           end
+          unless @clouds[region].key?('db')
+            @clouds[region]['db'] = {}
+          end
         end
       end
     else
@@ -44,12 +49,14 @@ class NovaDB2
 
   def _connect_to_dbs
     @clouds.each do |region, region_info|
-      unless @clouds[region].key?('db')
-        @clouds[region]['db'] = {}
-      end
+      #unless @clouds[region].key?('db')
+      #  @clouds[region]['db'] = {}
+      #end
 
       region_info['mysql'].each do |db, db_info|
         unless @clouds[region]['db'].key?(db)
+          #puts "Connected to #{db}"
+          db_info.merge!({:max_connections => 10, :reconnect => true})
           @clouds[region]['db'][db] = Sequel.mysql2(db_info)
         end
       end
@@ -62,7 +69,7 @@ class NovaDB2
   end
 
   def get_database(db, region = nil)
-    _connect_to_dbs
+    self._connect_to_dbs
 
     if not region
       @clouds.keys.each do |r|
@@ -76,7 +83,6 @@ class NovaDB2
   end
 
   def get_database_name(db, region = nil)
-    require 'pp'
     if not region
       @clouds.keys.each do |r|
         if @clouds[r]['mysql'][db][:master] == true

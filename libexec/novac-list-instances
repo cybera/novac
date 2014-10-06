@@ -16,7 +16,7 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-novadb = NovaDB2.new
+novadb = NovaDB2.instance
 
 # Get the OpenStack Query Library
 os_release = novadb.get_openstack_release

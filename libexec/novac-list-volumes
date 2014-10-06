@@ -15,7 +15,7 @@ if Process.euid != 0
 end
 
 # Get a list of clouds
-novadb = NovaDB2.new
+novadb = NovaDB2.instance
 projects = Projects.new.projects
 
 # Get the OpenStack Query Library

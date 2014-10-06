@@ -18,7 +18,7 @@ end
 logger = Logger.new('/var/log/nova/quotas.log')
 
 # Create the novadb object
-novadb = NovaDB2.new
+novadb = NovaDB2.instance
 
 # Create a quota object
 quota = Quotas.new

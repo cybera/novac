@@ -7,7 +7,7 @@ class Users
 
   def initialize
     @users = {}
-    novadb = NovaDB2.new
+    novadb = NovaDB2.instance
     # Get the OpenStack Query Library
     os_release = novadb.get_openstack_release
     require "openstack/#{os_release}"

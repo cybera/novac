@@ -24,7 +24,7 @@ else
 end
 
 # Objects
-novadb = NovaDB2.new
+novadb = NovaDB2.instance
 users = Users.new
 
 # Get the OpenStack Query Library

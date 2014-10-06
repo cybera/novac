@@ -5,7 +5,7 @@ require 'rubygems'
 require 'novadb2'
 require 'pp'
 
-novadb = NovaDB2.new
+novadb = NovaDB2.instance
 now = Time.now
 time = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
 region = %x{ facter location }.chomp
