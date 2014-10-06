@@ -110,13 +110,27 @@ class Icehouse
 
   def nova_set_project_quota(project_id, resource, limit, region = nil)
     db = @novadb.get_database('nova', region)
+
+    # Check to see if the current value is the same.
+    # This should save on resources
+    count = db.fetch("
+              select count(*) as c
+              from quotas
+              where project_id = '#{project_id}' and resource = '#{resource}' and hard_limit = '#{limit}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{limit} #{region}"
+      return true
+    end
+
     count = db.fetch("
               select count(*) as c
               from quotas
               where project_id = '#{project_id}' and resource = '#{resource}'
             ").first[:c].to_i
     if count == 1
-      ds = db['update quotas set hard_limit = ? where resource = ? and project_id = ?',
+      #puts "Updating #{project_id} #{resource} to #{limit}"
+      ds = db['update quotas set hard_limit = ?, updated_at = now() where resource = ? and project_id = ?',
               limit, resource, project_id
            ]
       ds.update
@@ -364,6 +378,19 @@ class Icehouse
 
   def cinder_set_project_quota(project_id, resource, limit, region = nil)
     db = @novadb.get_database('cinder', region)
+
+    # Check to see if the current value is the same.
+    # This should save on resources
+    count = db.fetch("
+              select count(*) as c
+              from quotas
+              where project_id = '#{project_id}' and resource = '#{resource}' and hard_limit = '#{limit}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{limit} #{region}"
+      return true
+    end
+
     count = db.fetch("
               select count(*) as c
               from quotas
@@ -387,6 +414,19 @@ class Icehouse
 
   def cinder_set_project_used(project_id, resource, in_use, region = nil)
     db = @novadb.get_database('cinder', region)
+
+    # Check to see if the current value is the same.
+    # This should save on resources
+    count = db.fetch("
+              select count(*) as c
+              from quota_usages
+              where project_id = '#{project_id}' and resource = '#{resource}' and in_use = '#{in_use}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{in_use} #{region}"
+      return true
+    end
+
     count = db.fetch("
               select count(*) as c
               from quota_usages

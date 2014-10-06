@@ -54,6 +54,9 @@ class Quotas
   # But no defaults
   # Used to determine what values need syncd to another region.
   # Default values shouldn't be syncd
+  # Unfortunately this hasn't worked for a while, if not ever, since
+  # we use custom quotas in all regions and default change from release
+  # to release.
   def project_quota(project_id)
     quota = {}
     ['nova_project_quota', 'cinder_project_quota'].each do |query|
@@ -178,15 +181,22 @@ class Quotas
 
     # Loop through each project
     # And do some wacky data processing due to Parallel
-    begin
-      x = Parallel.map(projects.project_ids) do |project_id|
-        { project_id => get_project_usage(project_id) }
-      end
-      x.each do |y|
-        total_usage.merge!(y)
-      end
-      total_usage
+    #begin
+    #  x = Parallel.map(projects.project_ids) do |project_id|
+    #    { project_id => get_project_usage(project_id) }
+    #  end
+    #  x.each do |y|
+    #    total_usage.merge!(y)
+    #  end
+    #  total_usage
+    #end
+
+    projects.project_ids.each do |project_id|
+      total_usage[project_id] = get_project_usage(project_id)
     end
+
+    total_usage
+
   end
 
 
@@ -205,7 +215,7 @@ class Quotas
   def balance_usage_for_project(project_id)
     total_usage = {}
     total_usage[project_id] = get_project_usage(project_id)
-    sync_all_used_serial(total_usage)
+    sync_all_used(total_usage)
   end
 
 
@@ -263,10 +273,16 @@ class Quotas
       next if @novadb.master_region?('nova', region)
 
       # Loop through all projects 5 at a time
-      Parallel.each(tmp_project_limits.keys) do |project_id|
+      #Parallel.each(tmp_project_limits.keys) do |project_id|
+      #  tmp_project_limits[project_id].each do |resource, limit|
+      #    limit = tmp_project_limits[project_id][resource]
+      #    set_project_quota(project_id, region, resource, limit)
+      #  end
+      #end
+      tmp_project_limits.keys.each do |project_id|
         tmp_project_limits[project_id].each do |resource, limit|
-          limit = tmp_project_limits[project_id][resource]
-          set_project_quota(project_id, region, resource, limit)
+          l = tmp_project_limits[project_id][resource]
+          set_project_quota(project_id, region, resource, l)
         end
       end
     end
@@ -278,35 +294,43 @@ class Quotas
   def sync_all_used(total_usage)
     @novadb.regions.each do |region|
       total_usage.keys.each do |project_id|
-        Parallel.each(total_usage[project_id]['global']) do |resource, in_use|
+        total_usage[project_id]['global'].each do |resource, in_use|
           set_project_used_resource(project_id, region, resource, in_use)
         end
-      end
-      total_usage.keys.each do |project_id|
-        total_usage[project_id]['users'].each do |user_id, user_info|
-          Parallel.each(total_usage[project_id]['users'][user_id]) do |resource, in_use|
+        total_usage[project_id]['users'].keys.each do |user_id|
+          total_usage[project_id]['users'][user_id].each do |resource, in_use|
             set_project_used_resource(project_id, region, resource, in_use, user_id)
           end
         end
+        #Parallel.each(total_usage[project_id]['global']) do |resource, in_use|
+        #  set_project_used_resource(project_id, region, resource, in_use)
+        #end
+      #end
+      #total_usage.keys.each do |project_id|
+      #  total_usage[project_id]['users'].each do |user_id, user_info|
+      #    Parallel.each(total_usage[project_id]['users'][user_id]) do |resource, in_use|
+      #      set_project_used_resource(project_id, region, resource, in_use, user_id)
+      #    end
+      #  end
       end
     end
   end
 
   # Same as above but does not use parallel
-  def sync_all_used_serial(total_usage)
-    @novadb.regions.each do |region|
-      total_usage.keys.each do |project_id|
-        total_usage[project_id]['global'].each do |resource, in_use|
-          set_project_used_resource(project_id, region, resource, in_use)
-        end
-        total_usage[project_id]['users'].each do |user_id, user_info|
-          total_usage[project_id]['users'][user_id].each do |resource, in_use|
-            set_project_used_resource(project_id, region, resource, in_use, user_id)
-          end
-        end
-      end
-    end
-  end
+  #def sync_all_used_serial(total_usage)
+  #  @novadb.regions.each do |region|
+  #    total_usage.keys.each do |project_id|
+  #      total_usage[project_id]['global'].each do |resource, in_use|
+  #        set_project_used_resource(project_id, region, resource, in_use)
+  #      end
+  #      total_usage[project_id]['users'].each do |user_id, user_info|
+  #        total_usage[project_id]['users'][user_id].each do |resource, in_use|
+  #          set_project_used_resource(project_id, region, resource, in_use, user_id)
+  #        end
+  #      end
+  #    end
+  #  end
+  #end
 
   # Sets a project's resource usage in a region
   def set_project_used_resource(project_id, region, resource, in_use, user_id = nil)
