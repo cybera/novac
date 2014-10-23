@@ -10,11 +10,12 @@ if [ "$1" = "" -o "$2" = "" ]; then
 fi
 
 source /root/openrc
+unset OS_TENANT_NAME
 export OS_USERNAME="${1}:admin"
+export OS_TENANT_ID=$1
 
-cat /root/.mysqlrc | while read line
+grep \\[mysql /etc/novac/config.ini | grep nova | cut -d: -f2 | while read line
 do
-  REGION=$(echo $line | cut -d, -f1)
-  export OS_REGION_NAME=$REGION
+  export OS_REGION_NAME=$line
   swift post -m quota-bytes:$2
 done
