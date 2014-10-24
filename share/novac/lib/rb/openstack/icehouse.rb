@@ -28,6 +28,14 @@ class Icehouse
     ")
   end
 
+  def all_instances_by_project(project_id, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select uuid, display_name, created_at, deleted_at, vm_state from instances
+      where project_id = '#{project_id}'
+      order by uuid
+    ")
+  end
+
   def instances_by_user(user_id, region = nil)
     @novadb.get_database('nova', region).fetch("
       select id, display_name from instances
@@ -205,6 +213,12 @@ class Icehouse
   def enabled_projects(region = nil)
     @novadb.get_database('keystone', region).fetch("
       select id, name from project where enabled = 1
+    ")
+  end
+
+  def all_projects(region = nil)
+    @novadb.get_database('keystone', region).fetch("
+      select id, name from project
     ")
   end
 

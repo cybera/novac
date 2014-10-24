@@ -35,6 +35,15 @@ class Projects
     projects
   end
 
+  def all_projects
+    projects = {}
+    @openstack.all_projects.each do |row|
+      projects[row[:id]] = row[:name]
+    end
+    projects
+  end
+
+
   def fuzzy_search(x)
 
     return {} if not x

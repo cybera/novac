@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby
+
+# Usage: novac grafana-helper [tenantID]
+# Summary: A helper script for working with our Grafana installation. With no argument it will print out the IDs and names of all the projects for easy grepping. With a tenant ID argument it will list all instances (dead or not)
+# Help: tenantID is an optional argument. If specified it will list the instances ever created in the project. If not, it will show the project IDs and names
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'helpers/projects'
+
+required_libs = ['terminal-table','mysql2']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+novadb = NovaDB2.instance
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+require 'pp'
+
+# Was a user ID specified (ID or 'all')
+if ARGV[0]
+  project_id = ARGV[0]
+else
+  # Essentially running keystone tenant-list without an argument
+  projects = Projects.new
+
+  rows = []
+  headings = ['ID', 'Name']
+  projects.enabled_projects.keys.each do |project_id|
+    rows << [project_id, projects.projects[project_id]]
+  end
+
+  puts Terminal::Table.new :headings => headings, :rows => rows
+  exit 0
+end
+
+puts 'tenant ID specified'
+
+headings = ['ID', 'Name', 'Status', 'Creation', 'Deletion']
+rows = []
+
+novadb.regions.each do |region, creds|
+  instances = openstack.all_instances_by_project(project_id, region)
+  instances.each do |row|
+    rows << [row[:uuid], row[:display_name], row[:vm_state], row[:created_at], row[:deleted_at] ]
+  end
+end
+
+puts "Instances for #{project_id}"
+puts Terminal::Table.new :headings => headings, :rows => rows
+
