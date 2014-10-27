@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Usage: novac cloud-user-metrics-dair-links
+# Usage: novac dair-make-metric-links
 # Summary: Create symlinks to get around collectd's restrictive naming format
 # Help: Create symlinks to get around collectd's restrictive naming format
 
