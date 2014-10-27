@@ -1,0 +1,115 @@
+#!/usr/bin/env ruby
+# Usage: novac ip-stats [--full-detail] [--idle-only] [--free-only] [--used-only]
+# Summary: List all floating IPs and the usage stats
+# Help: Shows usage stats for floating IPs. If --full-detail is used, show the list of IPs. Other flags isolate only that one category. Only one flag works at a time.
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+
+required_libs = ['terminal-table','mysql2']
+
+# Try to load each of the libraries
+# Fail if unable to and list what libs are needed
+begin
+  required_libs.each { |l| require l }
+rescue LoadError
+  puts "This script needs the following external libraries: "
+  required_libs.each { |l| puts " * #{l}" }
+  exit 1
+end
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+novadb = NovaDB2.instance
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+rows = []
+
+# To print:
+# Number of Used, Available, Total with percentages of IPs in use.
+# List of used IPs
+# List of unused allocated IPs with the age
+
+total_available_ips = 0
+total_used_ips = 0
+total_free_ips = 0
+total_idle_ips = 0
+
+#Load Project IDs
+projects = Projects.new
+
+novadb.regions.each do |region|
+  begin
+    rows = []
+    available_ips = openstack.available_ip_count(region)[:count][:count]
+    used_ips = openstack.used_ips(region)
+    free_ips = openstack.free_ips(region)
+    idle_ips = openstack.idle_ips(region)
+
+    if ARGV.empty?
+      total_available_ips += available_ips
+      total_used_ips += used_ips.count
+      total_free_ips += free_ips.count
+      total_idle_ips += idle_ips.count
+
+      rows << ['Available', available_ips, '']
+      rows << ['Used', used_ips.count, "%s %" % (used_ips.count/available_ips.to_f*100).round]
+      rows << ['Free', free_ips.count, "%s %" % (free_ips.count/available_ips.to_f*100).round]
+      rows << ['Idle', idle_ips.count, "%s %" % (idle_ips.count/available_ips.to_f*100).round]
+      table = Terminal::Table.new :title => "Floating IP Stats for #{region}", :rows => rows
+      puts table
+    else
+      if ARGV[0] == "--full-detail" or ARGV[0] == "--used-only"
+        rows = []
+        used_ips.each do | ip |
+          rows << [ ip[:address], ip[:display_name], projects.projects[ip[:project_id]] ]
+        end
+        headings = ['IP', 'Instance', 'Tenant']
+
+        table = Terminal::Table.new :title => "Used IPs for #{region}", :headers => headings, :rows => rows
+        puts table
+      end
+
+      if ARGV[0] == "--full-detail" or ARGV[0] == "--free-only"
+        free_ips.each do | ip |
+          rows << [ ip[:address] ]
+        end
+        headings = ['IP']
+
+        table = Terminal::Table.new :title => "Free/Available IPs for #{region}", :headers => headings, :rows => rows
+        puts table
+      end
+
+      if ARGV[0] == "--full-detail" or ARGV[0] == "--idle-only"
+        idle_ips.each do | ip |
+          rows << [ ip[:address], ip[:display_name], projects.projects[ip[:project_id]] ]
+        end
+        headings = ['IP', 'Instance', 'Tenant']
+
+        table = Terminal::Table.new :title => "Idle IPs for #{region}", :headers => headings, :rows => rows
+        puts table
+      end
+    end
+  end
+end
+rows = []
+
+if ARGV.empty?
+  rows << ['Available', total_available_ips, '']
+  rows << ['Used', total_used_ips, "%s %" % (total_used_ips/total_available_ips.to_f*100).round]
+  rows << ['Free', total_free_ips, "%s %" % (total_free_ips/total_available_ips.to_f*100).round]
+  rows << ['Idle', total_idle_ips, "%s %" % (total_idle_ips/total_available_ips.to_f*100).round]
+  table = Terminal::Table.new :title => "Total Floating IP Stats", :rows => rows
+  puts table
+end
+

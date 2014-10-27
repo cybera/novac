@@ -78,6 +78,35 @@ class Icehouse
     rows.first[:id]
   end
 
+  def available_ip_count(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select COUNT(*) as count
+      from floating_ips
+      where deleted = 0
+    ")
+  end
+
+  def used_ips(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select floating_ips.address, floating_ips.project_id, instances.display_name
+      from floating_ips
+      join fixed_ips on floating_ips.fixed_ip_id = fixed_ips.id
+      join instances ON fixed_ips.instance_uuid = instances.uuid
+    ")
+  end
+
+  def free_ips(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select address from floating_ips where `project_id` is null and deleted = 0
+    ")
+  end
+
+  def idle_ips(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select address, project_id from floating_ips where project_id is not null and fixed_ip_id is null
+    ")
+  end
+
   # Nova quotas
   def nova_project_quota(project_id, region = nil)
     @novadb.get_database('nova', region).fetch("
