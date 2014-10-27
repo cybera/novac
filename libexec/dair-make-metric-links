@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+
+# Usage: novac cloud-user-metrics-dair-links
+# Summary: Create symlinks to get around collectd's restrictive naming format
+# Help: Create symlinks to get around collectd's restrictive naming format
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'fileutils'
+require 'helpers/projects'
+
+src_dir = '/data/collectd/rrd'
+dst_dir = '/data/collectd/whisper_compatible'
+projects = Projects.new
+
+FileUtils.mkdir_p("#{dst_dir}/projects")
+
+Dir.foreach(src_dir) do |f|
+  next if f == '.' or f == '..'
+  case f
+  when /^project-/
+    project_id = f.split('-')[1]
+    project_name = projects.projects[project_id].downcase.strip.gsub(' ', '-').gsub(/[^\w-]/, '')
+    if not Dir.exists?("#{dst_dir}/projects/#{project_id}")
+      FileUtils.mkdir_p("#{dst_dir}/projects/#{project_id}")
+    end
+    FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/projects/#{project_id}/#{project_name}")
+  when /\./
+    server = f.gsub('.', '_')
+    FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/#{server}")
+  end
+end
