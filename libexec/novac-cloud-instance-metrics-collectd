@@ -7,11 +7,12 @@
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'mysql2'
-require 'novadb'
+require 'novadb2'
+require 'pp'
 
 location = %x{ facter location }.chomp
-novadb = NovaDB.new
-db = novadb.clouds[location]
+novadb = NovaDB2.instance
+db = novadb.clouds[location]['mysql']['nova']
 itop = {}
 
 now = Time.now
@@ -25,7 +26,7 @@ queries = {
   'interface' => "select * from interface where timestamp < #{now} and timestamp > #{past_hour}",
 }
 
-instance_metrics = Mysql2::Client.new( :host => db[:server], :username => db[:username], :password => db[:password], :database => 'instance_metrics' )
+instance_metrics = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => 'instance_metrics' )
 
 queries.each do |metric, query|
   query_rs = instance_metrics.query query
