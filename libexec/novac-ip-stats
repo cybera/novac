@@ -81,6 +81,7 @@ novadb.regions.each do |region|
       end
 
       if ARGV[0] == "--full-detail" or ARGV[0] == "--free-only"
+        rows = []
         free_ips.each do | ip |
           rows << [ ip[:address] ]
         end
@@ -91,6 +92,7 @@ novadb.regions.each do |region|
       end
 
       if ARGV[0] == "--full-detail" or ARGV[0] == "--idle-only"
+        rows = []
         idle_ips.each do | ip |
           rows << [ ip[:address], ip[:display_name], projects.projects[ip[:project_id]] ]
         end
