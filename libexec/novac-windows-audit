@@ -75,7 +75,7 @@ novadb.regions.each do |region,creds|
       instance = {}
 
       # Get the starting time of the instance
-      instance_start = Time.parse(row[:created_at])
+      instance_start = row[:created_at]
       instance_id = row[:uuid]
       instance[:instance_id] = instance_id
       instance[:start] = instance_start
@@ -85,7 +85,7 @@ novadb.regions.each do |region,creds|
       # If the instance was terminated
       if (row[:vm_state] == 'deleted')
         next if not row[:terminated_at]
-        instance_end = Time.parse(row[:terminated_at])
+        instance_end = row[:terminated_at]
         instance[:end] = instance_end
         if instance[:end].to_i <= end_date
           instance[:duration] = ((instance_end - instance_start) / 60).to_i / 60
@@ -104,7 +104,6 @@ novadb.regions.each do |region,creds|
       tenant = projects.projects[row[:project_id]]
       tenants[tenant] = [] if ! tenants.has_key?(tenant)
       tenants[tenant].push(instance)
-
     end
   end
 end
