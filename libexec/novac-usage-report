@@ -4,8 +4,8 @@
 
 $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
-require 'novadb'
-require 'projects'
+require 'novadb2'
+require 'helpers/projects'
 
 # List of required libraries
 required_libs = ['terminal-table','mysql2','parallel']
@@ -25,191 +25,148 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
-project_list = Projects.new
+# Total Counters
 
-# Yay. Counters.
-project_count = project_list.project_ids.count
-
-#History
-project_ever_had_instance_count= 0
-project_ever_had_instance_AB_count= 0
-project_ever_had_instance_QC_count= 0
-instance_in_AB_ever_count = 0
-instance_in_QC_ever_count = 0
-
-#Active
+project_ever_had_instance_count = 0
 project_with_active_instance_count = 0
-project_with_active_instance_AB_count = 0
-project_with_active_instance_QC_count = 0
-
-#History
 project_ever_had_volume_count = 0
-project_ever_had_volume_AB_count = 0
-project_ever_had_volume_QC_count = 0
-volume_in_AB_ever_count = 0
-volume_in_QC_ever_count = 0
+project_with_active_volume_count = 0
 
-#Active
-project_with_active_volume_total_count = 0
-project_with_active_volume_total_AB_count = 0
-project_with_active_volume_total_QC_count = 0
+project_ever_had_instance_regional_count = {}
+instance_in_region_count = {}
+project_with_active_instance_regional_count = {}
+
+project_ever_had_volume_regional_count = {}
+volume_in_region_count = {}
+project_with_active_volume_regional_count = {}
+instance_count = {}
+volume_count = {}
 
 # Get a list of clouds
-novadb = NovaDB.new
-master = novadb.master_cloud
-clouds = novadb.clouds
+novadb = NovaDB2.instance
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
 
+project_list = Projects.new
+project_count = project_list.project_ids.count
 
-nova_ab = Mysql2::Client.new( :host => clouds['alberta'][:server], :username => clouds['alberta'][:username], :password => clouds['alberta'][:password], :database => 'nova')
-nova_qc = Mysql2::Client.new( :host => clouds['quebec'][:server], :username => clouds['quebec'][:username], :password => clouds['quebec'][:password], :database => 'nova')
-cinder_ab = Mysql2::Client.new( :host => clouds['alberta'][:server], :username => clouds['alberta'][:username], :password => clouds['alberta'][:password], :database => 'cinder')
-cinder_qc = Mysql2::Client.new( :host => clouds['quebec'][:server], :username => clouds['quebec'][:username], :password => clouds['quebec'][:password], :database => 'cinder')
+#Init initial values for regions
+novadb.regions.each do | region |
+  project_ever_had_instance_regional_count[region] = 0
+  instance_in_region_count[region] = 0
+  project_with_active_instance_regional_count[region] = 0
+  project_ever_had_volume_regional_count[region] = 0
+  volume_in_region_count[region] = 0
+  project_with_active_volume_regional_count[region] = 0
+  instance_count[region] = openstack.instance_count(region)["count"][:count]
+  volume_count[region] = openstack.volume_count(region)["count"][:count]
+end
 
-
+# Iterate through projects checking active and historically used resources in each region.
 project_list.project_ids.each do |project_id|
   project = project_list.projects[project_id]
-  region_active_flag = 0
-  region_resource_flag = 0
+  cloud_active_flag = 0
+  cloud_resource_flag = 0
+  cloud_active_volume_flag = 0
+  cloud_volume_flag = 0
 
-  #Check for active instances exists in AB
-  active_instance_count = nova_ab.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0 AND `project_id` = '#{project_id}'")
-  # Is compute_node_stats any better than using deleted > 0 in instances?
-  deleted_instance_count = nova_ab.query("select COUNT(*) as count FROM instances WHERE `deleted` > 0 AND `project_id` = '#{project_id}'")
+  novadb.regions.each do | region |
+    active_instance_count = openstack.active_instances_count(project_id, region)["count"][:count]
+    deleted_instance_count = openstack.deleted_instances_count(project_id, region)["count"][:count]
+    active_volume_count = openstack.active_volumes_count(project_id, region)["count"][:count]
+    deleted_volume_count = openstack.deleted_volumes_count(project_id, region)["count"][:count]
 
-  #Project "used" and active counters increase
-  if(active_instance_count.first["count"] > 0)
-    project_ever_had_instance_count += 1
-    project_ever_had_instance_AB_count += 1
-    project_with_active_instance_AB_count += 1
-    project_with_active_instance_count += 1
-    region_resource_flag = 1
-    region_active_flag = 1
-    instance_in_AB_ever_count += (deleted_instance_count.first["count"] + active_instance_count.first["count"])
-  elsif (deleted_instance_count.first["count"] > 0)
-    project_ever_had_instance_count += 1
-    project_ever_had_instance_AB_count += 1
-    instance_in_AB_ever_count += deleted_instance_count.first["count"]
-    region_resource_flag = 1
-  end
+    # Update project's counters for instances
+    if(active_instance_count > 0)
+      # Don't double count if active in both regions
+      if(cloud_active_flag == 0 && cloud_resource_flag == 0)
+        project_ever_had_instance_count += 1
+        project_with_active_instance_count +=1
+      # Catch events where deleted instances in region 1, but active in region N
+      elsif (cloud_active_flag == 0)
+        project_with_active_instance_count +=1
+      end
+      project_ever_had_instance_regional_count[region] += 1
+      project_with_active_instance_regional_count[region] += 1
+      instance_in_region_count[region] += (deleted_instance_count + active_instance_count)
 
-  #Check for active instance exists in QC
-  active_instance_count = nova_qc.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0 AND `project_id` = '#{project_id}'")
-  deleted_instance_count = nova_qc.query("select COUNT(*) as count FROM instances WHERE `deleted` > 0 AND `project_id` = '#{project_id}'")
-  #deleted_instance_count = nova_qc.query("SELECT COUNT(*) as count FROM `compute_node_stats` WHERE `key` LIKE '%#{project_id}'")
+      cloud_resource_flag = 1
+      cloud_active_flag = 1
 
-  #Project "used" and active counters increase
-  if(active_instance_count.first["count"] > 0)
-    #Avoid double counting in both regions
-    if(region_active_flag == 0 && region_resource_flag == 0)
-      project_ever_had_instance_count += 1
-      project_with_active_instance_count += 1
-    #Just in case they have an active in QC but an old one in AB. Don't miss counting.
-    elsif (region_active_flag == 0)
-      project_with_active_instance_count += 1
+    elsif (deleted_instance_count > 0)
+      if(cloud_resource_flag == 0)
+        project_ever_had_instance_count += 1
+      end
+      project_ever_had_instance_regional_count[region] += 1
+      instance_in_region_count[region] += deleted_instance_count
+      cloud_resource_flag = 1
     end
 
-    project_ever_had_instance_QC_count += 1
-    project_with_active_instance_QC_count += 1
-    instance_in_QC_ever_count += (deleted_instance_count.first["count"] + active_instance_count.first["count"])
-  elsif (deleted_instance_count.first["count"] > 0)
-    if(region_resource_flag == 0)
-      project_ever_had_instance_count +=1
+    #Update project's counters for volumes
+    if(active_volume_count > 0)
+      # Don't double count if active in both regions
+      if(cloud_active_volume_flag == 0 && cloud_volume_flag == 0)
+        project_ever_had_volume_count += 1
+        project_with_active_volume_count +=1
+      # Catch events where deleted instances in region 1, but active in region N
+      elsif (cloud_active_volume_flag == 0)
+        project_with_active_volume_count +=1
+      end
+      project_ever_had_volume_regional_count[region] += 1
+      project_with_active_volume_regional_count[region] += 1
+      volume_in_region_count[region] += (deleted_volume_count + active_volume_count)
+
+      cloud_volume_flag = 1
+      cloud_active_volume_flag = 1
+
+    elsif (deleted_volume_count > 0)
+      if(cloud_volume_flag == 0)
+        project_ever_had_volume_count += 1
+      end
+      project_ever_had_volume_regional_count[region] += 1
+      volume_in_region_count[region] += deleted_volume_count
+      cloud_volume_flag = 1
     end
-    project_ever_had_instance_QC_count += 1
-    instance_in_QC_ever_count += deleted_instance_count.first["count"]
-  end
-
-  ## Volumes - reset region_active_flag
-  region_active_flag = 0
-  region_resource_flag = 0
-
-  #Check if volume exists in AB
-  volume_count = cinder_ab.query("select COUNT(*) as count FROM volumes WHERE `project_id` = '#{project_id}' and deleted = 0")
-  deleted_volume_count = cinder_ab.query("select COUNT(*) as count FROM volumes WHERE `project_id` = '#{project_id}' and deleted = 1")
-
-  #Project "used" and active counters increase
-  if(volume_count.first["count"] > 0)
-    project_ever_had_volume_count += 1
-    project_ever_had_volume_AB_count += 1
-    project_with_active_volume_total_AB_count += 1
-    project_with_active_volume_total_count += 1
-    region_resource_flag = 1
-    region_active_flag = 1
-    volume_in_AB_ever_count += (deleted_volume_count.first["count"] + volume_count.first["count"])
-  elsif (deleted_volume_count.first["count"] > 0)
-    project_ever_had_volume_count +=1
-    project_ever_had_volume_AB_count += 1
-    volume_in_AB_ever_count += deleted_volume_count.first["count"]
-    region_resource_flag = 1
-  end
-
-  #Check if volume exists in QC
-  volume_count = cinder_qc.query("select COUNT(*) as count FROM volumes WHERE `project_id` = '#{project_id}' and deleted = 0")
-  deleted_volume_count = cinder_qc.query("select COUNT(*) as count FROM volumes WHERE `project_id` = '#{project_id}' and deleted = 1")
-
-  #Project "used" and active counters increase
-  if(volume_count.first["count"] > 0)
-    #Avoid double counting in both regions
-    if(region_active_flag == 0 && region_resource_flag == 0)
-      project_ever_had_volume_count += 1
-      project_with_active_volume_total_count += 1
-    elsif(region_active_flag == 0)
-      project_with_active_volume_total_count += 1
-    end
-
-    project_ever_had_volume_QC_count += 1
-    project_with_active_volume_total_QC_count += 1
-    volume_in_QC_ever_count += (deleted_volume_count.first["count"] + volume_count.first["count"])
-  elsif (deleted_volume_count.first["count"] > 0)
-    if(region_resource_flag == 0)
-      project_ever_had_volume_count +=1
-    end
-    project_ever_had_volume_QC_count += 1
-    volume_in_QC_ever_count += deleted_volume_count.first["count"]
   end
 end
 
-ab_count = nova_ab.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0")
-qc_count = nova_qc.query("select COUNT(*) as count FROM instances WHERE `deleted` = 0")
+instance_total_count = 0
+instance_in_region_count.each { |a| instance_total_count += a[1] }
 
-instances_count = ab_count.first["count"] + qc_count.first["count"]
-instance_total_count = instance_in_AB_ever_count + instance_in_QC_ever_count
+instances_count = 0
+instance_count.each { |a| instances_count += a[1] }
 
-ab_count = cinder_ab.query("select COUNT(*) as count FROM volumes WHERE `deleted` = 0")
-qc_count = cinder_qc.query("select COUNT(*) as count FROM volumes WHERE `deleted` = 0")
+volume_total_count = 0
+volume_in_region_count.each { |a| volume_total_count += a[1] }
 
-volumes_count = ab_count.first["count"] + qc_count.first["count"]
-volume_total_count = volume_in_AB_ever_count + volume_in_QC_ever_count
+volumes_count = 0
+volume_count.each { |a| volumes_count += a[1] }
 
-# Based on current projects - if a project is deleted (not in the project_list) it's numbers don't appear here...
 puts "Total Projects:               #{project_count}"
 puts "Total Active Instances:       #{instances_count}"
 puts "Total Active Volumes:         #{volumes_count}"
 puts ""
 puts "Total Ever Instances:         #{instance_total_count}"
-puts "Total Ever Instances in AB:   #{instance_in_AB_ever_count}"
-puts "Total Ever Instances in QC:   #{instance_in_QC_ever_count}"
-puts ""
 puts "Total Ever Volumes:           #{volume_total_count}"
-puts "Total Ever Volumes in AB:     #{volume_in_AB_ever_count}"
-puts "Total Ever Volumes in QC:     #{volume_in_QC_ever_count}"
 puts ""
-puts "-----"
+puts "---"
 puts ""
-puts "Projects that:"
+puts "Projects that Have:"
 puts "Launched an Instance:         #{(project_ever_had_instance_count / project_count.to_f * 100).round()} % (#{project_ever_had_instance_count})"
-puts "Launched an Instance in AB:   #{(project_ever_had_instance_AB_count / project_count.to_f * 100).round()} % (#{project_ever_had_instance_AB_count})"
-puts "Launched an Instance in QC:   #{(project_ever_had_instance_QC_count / project_count.to_f * 100).round()} % (#{project_ever_had_instance_QC_count})"
-puts ""
-puts "Have an Active Instance:      #{(project_with_active_instance_count / project_count.to_f * 100).round()} % (#{project_with_active_instance_count})"
-puts "Have an Active Instance (AB): #{(project_with_active_instance_AB_count / project_count.to_f * 100).round()} % (#{project_with_active_instance_AB_count})"
-puts "Have an Active Instance (QC): #{(project_with_active_instance_QC_count / project_count.to_f * 100).round()} % (#{project_with_active_instance_QC_count})"
-puts ""
+puts "An Active Instance:           #{(project_with_active_instance_count / project_count.to_f * 100).round()} % (#{project_with_active_instance_count})"
 puts "Created a Volume:             #{(project_ever_had_volume_count / project_count.to_f * 100).round()} % (#{project_ever_had_volume_count})"
-puts "Created a Volume in AB:       #{(project_ever_had_volume_AB_count / project_count.to_f * 100).round()} % (#{project_ever_had_volume_AB_count})"
-puts "Created a Volume in QC:       #{(project_ever_had_volume_QC_count / project_count.to_f * 100).round()} % (#{project_ever_had_volume_QC_count})"
+puts "An Active Volume:             #{(project_with_active_volume_count / project_count.to_f * 100).round()} % (#{project_with_active_volume_count})"
 puts ""
-puts "Have an Active Volume:        #{(project_with_active_volume_total_count / project_count.to_f * 100).round()} % (#{project_with_active_volume_total_count})"
-puts "Have an Active Volume (AB):   #{(project_with_active_volume_total_AB_count/ project_count.to_f * 100).round()} % (#{project_with_active_volume_total_AB_count})"
-puts "Have an Active Volume (QC):   #{(project_with_active_volume_total_QC_count/ project_count.to_f * 100).round()} % (#{project_with_active_volume_total_QC_count})"
+puts "Region Stats:"
+
+novadb.regions.each do | region |
+  puts "#{region}:"
+  puts "Launched an Instance:         #{(project_ever_had_instance_regional_count[region] / project_count.to_f * 100).round()} % (#{project_ever_had_instance_regional_count[region]})"
+  puts "Active Instances:             #{(project_with_active_instance_regional_count[region] / project_count.to_f * 100).round()} % (#{project_ever_had_instance_regional_count[region]})"
+  puts "Created a Volume:             #{(volume_in_region_count[region] / project_count.to_f * 100).round()} % (#{volume_in_region_count[region]})"
+  puts "Active Volume:                #{(project_with_active_volume_regional_count[region] / project_count.to_f * 100).round()} % (#{project_with_active_volume_regional_count[region]})"
+  puts ""
+end
+
 
