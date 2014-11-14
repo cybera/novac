@@ -12,10 +12,12 @@ fi
 source /root/openrc
 unset OS_TENANT_NAME
 export OS_USERNAME="${1}:admin"
-export OS_TENANT_ID=$1
+export OS_TENANT_NAME=$1
 
 grep \\[mysql /etc/novac/config.ini | grep nova | cut -d: -f2 | while read line
 do
   export OS_REGION_NAME=$line
+  echo $OS_REGION_NAME
   swift post -m quota-bytes:$2
+  swift stat
 done
