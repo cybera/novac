@@ -44,6 +44,11 @@ novadb.regions.each do |region, creds|
       # Get the project name
       project = projects[row[:project_id]]
 
+      # Protection against nil projects
+      if project == nil
+        project = 'MISSING PROJECT'
+      end
+
       # Build the output row
       if not rows.has_key?(project)
         rows[project] = []
@@ -58,7 +63,7 @@ headings = ['ID', 'Name', 'Project', 'Status', 'Attach Status', 'Instance', 'Mou
 
 # Sort based on project
 r = []
-rows.keys.sort!.each do |project|
+rows.keys.sort.each do |project|
   rows[project].each do |row|
     r << row
   end

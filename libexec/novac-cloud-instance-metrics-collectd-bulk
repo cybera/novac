@@ -17,8 +17,7 @@ itop = {}
 
 now = Time.now
 now = Time.new(now.year, now.month, now.day, now.hour, 0, 0).getgm.to_i
-#past_hour = now - (3600 * 1)
-past_hour = 0
+past_hour = now - (3600 * 10)
 
 queries = {
   'cpu'       => "select * from cpu where timestamp < #{now} and timestamp > #{past_hour}",
