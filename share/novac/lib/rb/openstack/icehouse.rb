@@ -145,6 +145,30 @@ class Icehouse
     return [{:floating_ips => c}]
   end
 
+  def instance_count(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      WHERE deleted = 0
+    ")
+  end
+
+  def active_instances_count(project_id, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      where project_id = '#{project_id}' and deleted = 0
+    ")
+  end
+
+  def deleted_instances_count(project_id, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      where project_id = '#{project_id}' and deleted > 0
+    ")
+  end
+
   def nova_set_project_quota(project_id, resource, limit, region = nil)
     db = @novadb.get_database('nova', region)
 
@@ -367,6 +391,30 @@ class Icehouse
       select id, display_name from volumes
       where user_id = '#{user_id}' and deleted = 0
       order by display_name
+    ")
+  end
+
+  def volume_count(region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      WHERE deleted = 0
+    ")
+  end
+
+  def active_volumes_count(project_id, region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      where project_id = '#{project_id}' and deleted = 0
+    ")
+  end
+
+  def deleted_volumes_count(project_id, region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      where project_id = '#{project_id}' and deleted > 0
     ")
   end
 
