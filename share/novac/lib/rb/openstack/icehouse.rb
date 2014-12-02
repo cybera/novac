@@ -54,7 +54,7 @@ class Icehouse
 
   def secgroups_by_project(project_id, region = nil)
     @novadb.get_database('nova', region).fetch("
-      select from_port, to_port, cidr
+      select security_groups.name as name, from_port, to_port, cidr, protocol
       from security_group_rules inner join security_groups on security_groups.id=security_group_rules.parent_group_id
         inner join keystone.project on security_groups.project_id=keystone.project.id
       where security_group_rules.deleted = 0 AND keystone.project.id = '#{project_id}'
