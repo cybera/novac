@@ -81,8 +81,8 @@ projects.projects.keys.each do |project_id|
     disk = 0
     #volume = %x{ /root/novac/bin/novac quota-get-used-resources #{project_id} gigabytes }.chomp if location == 'alberta'
   end
-  puts "projects.#{project_id}.cloud_usage.instances #{instances} #{t}"
-  puts "projects.#{project_id}.cloud_usage.memory #{memory} #{t}"
-  puts "projects.#{project_id}.cloud_usage.cpu #{cpu} #{t}"
-  puts "projects.#{project_id}.cloud_usage.disk #{disk} #{t}"
+  puts "projects.#{project_id}.cloud_usage.#{location}.instances #{instances} #{t}"
+  puts "projects.#{project_id}.cloud_usage.#{location}.memory #{memory} #{t}"
+  puts "projects.#{project_id}.cloud_usage.#{location}.cpu #{cpu} #{t}"
+  puts "projects.#{project_id}.cloud_usage.#{location}.disk #{disk} #{t}"
 end
