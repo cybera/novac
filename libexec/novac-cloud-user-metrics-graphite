@@ -67,6 +67,11 @@ usages.each do |usage|
   project_usage[usage['Tenant ID']] = usage
 end
 
+total_instances = 0
+total_memory = 0
+total_cpu = 0
+total_disk = 0
+
 projects.projects.keys.each do |project_id|
   if project_usage.key?(project_id)
     instances = project_usage[project_id]['Instances'].to_i
@@ -81,8 +86,19 @@ projects.projects.keys.each do |project_id|
     disk = 0
     #volume = %x{ /root/novac/bin/novac quota-get-used-resources #{project_id} gigabytes }.chomp if location == 'alberta'
   end
+
+  total_instances += instances
+  total_memory += memory
+  total_cpu += cpu
+  total_disk += disk
+
   puts "projects.#{project_id}.cloud_usage.#{location}.instances #{instances} #{t}"
   puts "projects.#{project_id}.cloud_usage.#{location}.memory #{memory} #{t}"
   puts "projects.#{project_id}.cloud_usage.#{location}.cpu #{cpu} #{t}"
   puts "projects.#{project_id}.cloud_usage.#{location}.disk #{disk} #{t}"
 end
+
+puts "cloud_usage.#{location}.instances #{total_instances} #{t}"
+puts "cloud_usage.#{location}.memory #{total_memory} #{t}"
+puts "cloud_usage.#{location}.cpu #{total_cpu} #{t}"
+puts "cloud_usage.#{location}.disk #{total_disk} #{t}"
