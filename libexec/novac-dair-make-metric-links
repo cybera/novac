@@ -23,9 +23,13 @@ Dir.foreach(src_dir) do |f|
     if not Dir.exists?("#{dst_dir}/projects/#{project_id}")
       FileUtils.mkdir_p("#{dst_dir}/projects/#{project_id}")
     end
-    FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/projects/#{project_id}/#{project_name}")
+    if not File.exists?("#{src_dir}/#{f}")
+      FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/projects/#{project_id}/#{project_name}")
+    end
   when /\./
     server = f.gsub('.', '_')
-    FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/#{server}")
+    if not File.exists?("#{dst_dir}/#{server}")
+      FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/#{server}")
+    end
   end
 end
