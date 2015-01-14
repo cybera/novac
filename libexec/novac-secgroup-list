@@ -42,12 +42,12 @@ project_name = project.values[0]
 rows = []
 novadb.regions.each do |region, creds|
   openstack.secgroups_by_project(project_id, region).each do |row|
-    rows << [ project_name, row[:from_port], row[:to_port], row[:cidr] ]
+    rows << [ project_name, row[:name], row[:protocol], row[:from_port], row[:to_port], row[:cidr] ]
   end
 end
 
 # Print report
-headings = [ 'Project', 'Start Port', 'End Port', 'CIDR' ]
+headings = [ 'Project', 'Name', 'Protocol', 'Start Port', 'End Port', 'CIDR' ]
 
 table = Terminal::Table.new :headings => headings, :rows => rows
 puts table

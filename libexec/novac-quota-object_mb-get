@@ -8,7 +8,7 @@ require 'helpers/quotas'
 project_id = ARGV[0]
 quotas = Quotas.new
 
-object_mb = quotas.project_quota(project_id)['object_mb']
+object_mb = quotas.project_quota_with_defaults(project_id)['object_mb']
 if object_mb
   puts object_mb
 else

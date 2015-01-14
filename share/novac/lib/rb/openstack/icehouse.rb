@@ -54,7 +54,7 @@ class Icehouse
 
   def secgroups_by_project(project_id, region = nil)
     @novadb.get_database('nova', region).fetch("
-      select from_port, to_port, cidr
+      select security_groups.name as name, from_port, to_port, cidr, protocol
       from security_group_rules inner join security_groups on security_groups.id=security_group_rules.parent_group_id
         inner join keystone.project on security_groups.project_id=keystone.project.id
       where security_group_rules.deleted = 0 AND keystone.project.id = '#{project_id}'
@@ -143,6 +143,30 @@ class Icehouse
   def nova_floating_ip_count(project_id, region = nil)
     c = self.floating_ips_by_project(project_id, region).count
     return [{:floating_ips => c}]
+  end
+
+  def instance_count(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      WHERE deleted = 0
+    ")
+  end
+
+  def active_instances_count(project_id, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      where project_id = '#{project_id}' and deleted = 0
+    ")
+  end
+
+  def deleted_instances_count(project_id, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select count(*) as count
+      from instances
+      where project_id = '#{project_id}' and deleted > 0
+    ")
   end
 
   def nova_set_project_quota(project_id, resource, limit, region = nil)
@@ -367,6 +391,30 @@ class Icehouse
       select id, display_name from volumes
       where user_id = '#{user_id}' and deleted = 0
       order by display_name
+    ")
+  end
+
+  def volume_count(region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      WHERE deleted = 0
+    ")
+  end
+
+  def active_volumes_count(project_id, region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      where project_id = '#{project_id}' and deleted = 0
+    ")
+  end
+
+  def deleted_volumes_count(project_id, region = nil)
+    @novadb.get_database('cinder', region).fetch("
+      select count(*) as count
+      from volumes
+      where project_id = '#{project_id}' and deleted > 0
     ")
   end
 
