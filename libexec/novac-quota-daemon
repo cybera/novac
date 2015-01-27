@@ -60,6 +60,16 @@ begin
           if events.include?(event)
             logger.info("Caught event in #{region}: #{event}")
             if p.has_key?('payload')
+
+              # Alert if a public image was uploaded or updated (made public)
+              if event == 'image.update'
+                if p['payload']['is_public'] == true
+                  logger.info("Public image #{p['payload']['id']} uploaded or updated")
+                  %x{ echo "public image #{p['payload']['id']} uploaded or updated" | /usr/bin/mail -s "public image" root }
+                end
+              end
+
+              # Balance quotas for key events
               project_id = nil
               if p['payload'].has_key?('tenant_id')
                 project_id = p['payload']['tenant_id']
