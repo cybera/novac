@@ -31,7 +31,17 @@ total_containers = 0
 total_objects = 0
 total_space = 0
 
-keystone_db = MySQLdb.connect(read_default_file='/root/.my.cnf', db='keystone')
+ini = ConfigParser.RawConfigParser()
+ini.readfp(open('/etc/novac/config.ini'))
+
+# We only want to read info from keystone - which region doesn't matter since it's shared.
+for section_name in ini.sections():
+  if 'keystone' in section_name:
+    break
+  else:
+    continue
+
+keystone_db = MySQLdb.connect(host=ini.get(section_name,'host'), user=ini.get(section_name,'user'), passwd=ini.get(section_name,'password'), db=ini.get(section_name,'database'))
 
 c = keystone_db.cursor()
 c.execute('select id, name from project')
