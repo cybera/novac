@@ -3,7 +3,7 @@
 # Summary: Lists swift usage by all users
 # Help: Shows swift usage stats for all users. Does not require the reselleradmin role to be set up.
 
-# Requires python-swiftclient, prettytable, and MySQL-python (MySQLdb) to be installed
+# Requires httplib2, swift, prettytable, and MySQL-python (MySQLdb) libraries to be installed
 
 import MySQLdb
 import urllib
@@ -51,6 +51,7 @@ for r in c.fetchall():
 for tenant in tenants.keys():
   account = tenants[tenant]
   containers = 0
+  objects = 0
   space = '0.00'
   hash_str = hash_path(account)
   part, nodes = ring.get_nodes(account)
