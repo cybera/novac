@@ -48,7 +48,8 @@ projects = Projects.new
 now = Time.now
 midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
 today = midnight
-t = today.to_i
+#t = today.to_i
+t = now.to_i
 yesterday = today - 86400
 
 #puts today.strftime("%Y-%m-%d")

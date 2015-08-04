@@ -1,0 +1,87 @@
+#!/usr/bin/env ruby
+
+# Usage: novac cloud-hypervisor-metrics
+# Summary: Print hypervisor statistics
+# Help: Print hypervisor statistics
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'helpers/projects'
+
+# https://raw.github.com/stackforge/cookbook-openstack-common/master/libraries/parse.rb
+def prettytable_to_array table
+  ret = []
+  return ret if table == nil
+  indicies = []
+  (table.split(/$/).collect{|x| x.strip}).each { |line|
+    unless line.start_with?('+--') or line.empty?
+      cols = line.split('|').collect{|x| x.strip}
+      cols.shift
+      if indicies == []
+        indicies = cols
+        next
+      end
+      newobj = {}
+      cols.each { |val|
+        newobj[indicies[newobj.length]] = val
+      }
+      ret.push(newobj)
+    end
+  }
+  # this kinda sucks, but some prettytable data comes
+  # as Property Value pairs. If this is the case, then
+  # flatten it as expected.
+  newobj = {}
+  if indicies == ['Property', 'Value']
+    ret.each { |x|
+      newobj[x['Property']] = x['Value']
+    }
+    [newobj]
+  else
+    ret
+  end
+end
+
+location = %x{ facter location }.chomp
+projects = Projects.new
+
+now = Time.now
+t = now.to_i
+
+command = ". ~/openrc; /usr/bin/nova hypervisor-list"
+output = %x{ #{command} }
+
+hypervisor_list = {}
+
+stats = {
+  free_disk_gb: 0,
+  local_gb: 0,
+  local_gb_used: 0,
+  free_ram_mb: 0,
+  memory_mb_used: 0,
+  memory_mb: 0,
+  vcpus: 0,
+  vcpus_used: 0,
+  running_vms: 0,
+}
+
+hypervisors = prettytable_to_array(output)
+hypervisors.each do |hypervisor|
+  hypervisor_list[hypervisor['Hypervisor hostname']] = stats.clone
+end
+
+hypervisor_list.each do |hypervisor, hypervisor_stats|
+  command = ". ~/openrc; /usr/bin/nova hypervisor-show #{hypervisor}"
+  output = %x{ #{command} }
+  stats = prettytable_to_array(output)
+  hypervisor_stats.keys.each do |s|
+    hypervisor_list[hypervisor][s] = stats[0][s.to_s]
+  end
+end
+
+hypervisor_list.each do |hypervisor, hypervisor_stats|
+  h = hypervisor.gsub('.', '_')
+  hypervisor_stats.each do |k,v|
+    puts "#{h}.hypervisor_stats.#{k} #{v} #{t}"
+  end
+end
