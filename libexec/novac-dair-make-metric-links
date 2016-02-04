@@ -19,11 +19,12 @@ Dir.foreach(src_dir) do |f|
   case f
   when /^project-/
     project_id = f.split('-')[1]
+    next if not projects.projects[project_id]
     project_name = projects.projects[project_id].downcase.strip.gsub(' ', '-').gsub(/[^\w-]/, '')
     if not Dir.exists?("#{dst_dir}/projects/#{project_id}")
       FileUtils.mkdir_p("#{dst_dir}/projects/#{project_id}")
     end
-    if not File.exists?("#{src_dir}/#{f}")
+    if not File.lstat("#{dst_dir}/projects/#{project_id}/#{project_name}").symlink?
       FileUtils.ln_s("#{src_dir}/#{f}", "#{dst_dir}/projects/#{project_id}/#{project_name}")
     end
   when /\./
