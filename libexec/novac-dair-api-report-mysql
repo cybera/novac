@@ -1,0 +1,105 @@
+#!/usr/bin/env ruby
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'mysql2'
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+require 'csv'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Get the region and an optional logrotated file
+region = %x{ facter location }.chomp
+
+file = ""
+if ARGV.length > 0
+  file = ".#{ARGV[0].downcase}"
+end
+
+if region != "alberta" && region != "quebec"
+  puts "Must either specify alberta or quebec"
+  exit 1
+end
+
+# Figure out the correct directory for the logs
+nova_log_dir = ""
+swift_log_dir = ""
+if region == "alberta"
+  nova_log_dir = "nova-ab"
+  swift_log_dir = "swift-ab"
+else
+  log_dir = "nova-qc"
+  swift_log_dir = "swift-qc"
+end
+
+novadb = NovaDB2.instance
+db = novadb.clouds[region]['mysql']['nova']
+api_db = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => 'api_reports' )
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+projects = Projects.new.projects
+rows = []
+
+# Add tenant names to ignore here
+ignore_projects = ["nagioscheck"]
+
+# Build a map of services and how to parse their log files
+api_queries = {
+  'servers' => "zgrep nova.osapi_compute.wsgi.server /var/log/rsyslog/#{nova_log_dir}/nova.log#{file} | awk '{print $4, $5, $6, $12, $13, $14, $15}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'volumes' =>  "zgrep eventlet.wsgi.server /var/log/rsyslog/#{nova_log_dir}/cinder.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'object' => "zgrep -E 'GET|POST|PUT|DELETE' /var/log/rsyslog/#{swift_log_dir}/swift.log#{file} | awk '{print $4, $6, $9, $10, $24}' | grep -v headers",
+}
+
+# Swift tenant IDs must be pulled from a substring
+swift_tenant_id_re = /AUTH_([a-z0-9]+)/
+
+# For each of the services, parse their log files
+# Store the result in "rows"
+file_date = nil
+api_queries.each do |api, query|
+  output = `#{query}`
+  output.split("\n").each do |row|
+
+    begin
+      case api
+      when "object"
+        server, ip, request_type, request, date = row.split
+        d = date.to_f
+        date = Time.at(d).getlocal.strftime("%Y-%m-%d")
+        time = Time.at(d).getlocal.strftime("%H:%M:%S:%6N")
+        match = request.match swift_tenant_id_re
+        tenant_id = match[1]
+        tenant_name = projects[tenant_id]
+      else
+        server, date, time, tenant_id, ip, request_type, request = row.split
+        tenant_name = projects[tenant_id]
+      end
+    rescue
+      next
+    end
+
+    next if ignore_projects.include?(tenant_name)
+    next if request_type == nil
+    next if tenant_id == 'GET'
+    next if tenant_id == 'wsgi'
+    #next if ip == '208.75.75.119'
+
+    date_time = "#{date} #{time}"
+
+    begin
+      api_db.query "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{request_type}', '#{request}')"
+      #puts "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{request_type}', '#{request}')"
+    rescue
+      next
+    end
+  end
+end

@@ -13,16 +13,11 @@ if Process.euid != 0
 end
 
 # Get the region and an optional logrotated file
-region = ""
+region = %x{ facter location }.chomp
+
 file = ""
 if ARGV.length > 0
-  region = ARGV[0].downcase
-
-  if ARGV.length > 1
-    file = ".#{ARGV[1].downcase}"
-  end
-else
-  puts "Usage: novac dair-api-report <alberta|quebec>"
+  file = ".#{ARGV[0].downcase}"
 end
 
 if region != "alberta" && region != "quebec"
