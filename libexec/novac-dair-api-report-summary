@@ -59,7 +59,7 @@ end_date_formatted = "#{end_year}-#{end_month}-#{end_day}"
 
 
 results = {}
-rows = api_db.query "select date_format(log_date, '%Y-%m-%d %H:59:59') as d, service, tenant_id, request_type, count(request_type) as request_count from log where log_date > '#{now_formatted}' and log_date < '#{end_date_formatted}' and ip != '208.75.75.119' and tenant_id != 'GET' and tenant_id != 'wsgi' group by d, tenant_id, service order by log_date"
+rows = api_db.query "select date_format(log_date, '%Y-%m-%d %H:59:59') as d, service, tenant_id, request_type, count(request_type) as request_count from log where log_date > '#{now_formatted}' and log_date < '#{end_date_formatted}' and ip != '208.75.75.119' and ip != '127.0.0.1' and tenant_id != 'GET' and tenant_id != 'wsgi' group by d, tenant_id, service order by log_date"
 rows.each do |row|
   date = row['d']
   service = row['service']
@@ -89,7 +89,7 @@ CSV.open("/tmp/swift_api_summary.csv", "wb") do |csv|
   dates.each do |date|
     results[date].each do |tenant_id, services|
       counts = []
-      ['servers', 'volumes', 'object'].each do |service|
+      ['servers', 'volumes', 'image', 'object'].each do |service|
         if services.key?(service)
           ['GET', 'POST', 'PUT', 'DELETE'].each do |request_type|
             if services[service].key?(request_type)

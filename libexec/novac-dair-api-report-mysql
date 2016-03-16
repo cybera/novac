@@ -33,7 +33,7 @@ if region == "alberta"
   nova_log_dir = "nova-ab"
   swift_log_dir = "swift-ab"
 else
-  log_dir = "nova-qc"
+  nova_log_dir = "nova-qc"
   swift_log_dir = "swift-qc"
 end
 
