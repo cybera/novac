@@ -64,6 +64,7 @@ rows.each do |row|
   date = row['d']
   service = row['service']
   tenant_id = row['tenant_id']
+  tenant_name = projects[tenant_id]
   request_type = row['request_type']
   request_count = row['request_count']
 
@@ -79,6 +80,7 @@ rows.each do |row|
     results[date][tenant_id][service] = {}
   end
 
+  results[date][tenant_id]['name'] = tenant_name
   results[date][tenant_id][service][request_type] = request_count
 end
 
@@ -89,6 +91,7 @@ CSV.open("/tmp/swift_api_summary.csv", "wb") do |csv|
   dates.each do |date|
     results[date].each do |tenant_id, services|
       counts = []
+      tenant_name = results[date][tenant_id]['name']
       ['servers', 'volumes', 'image', 'object'].each do |service|
         if services.key?(service)
           ['GET', 'POST', 'PUT', 'DELETE'].each do |request_type|
@@ -107,7 +110,7 @@ CSV.open("/tmp/swift_api_summary.csv", "wb") do |csv|
       end
 
       if counts.length > 0
-        row = [date, tenant_id] + counts
+        row = [date, tenant_id, tenant_name] + counts
         csv << row
       end
     end

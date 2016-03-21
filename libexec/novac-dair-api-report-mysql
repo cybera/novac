@@ -82,6 +82,7 @@ api_queries.each do |api, query|
         tenant_name = projects[tenant_id]
       else
         server, date, time, tenant_id, ip, request_type, request = row.split
+        ip = ip.split(',')[0]
         tenant_name = projects[tenant_id]
       end
     rescue
@@ -92,6 +93,8 @@ api_queries.each do |api, query|
     next if request_type == nil
     next if tenant_id == 'GET'
     next if tenant_id == 'wsgi'
+    next if tenant_id == '-'
+    next if not ['GET', 'POST', 'DELETE', 'PUT', 'HEAD'].include?(request_type)
     #next if ip == '208.75.75.119'
 
     date_time = "#{date} #{time}"
