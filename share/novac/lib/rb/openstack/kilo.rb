@@ -1,7 +1,7 @@
 require 'novadb2'
 require 'sequel'
 
-class Icehouse
+class Kilo
 
   def initialize
     @novadb = NovaDB2.instance
