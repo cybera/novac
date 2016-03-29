@@ -46,8 +46,8 @@ else
 end
 
 year = now.year
-month = now.month
-day = now.day
+month = "%02d" % now.month
+day = "%02d" % now.day
 now_formatted = "#{year}-#{month}-#{day}"
 file_name = "api-summary-#{now_formatted}.csv"
 
@@ -64,9 +64,14 @@ rows.each do |row|
   date = row['d']
   service = row['service']
   tenant_id = row['tenant_id']
-  tenant_name = projects[tenant_id]
   request_type = row['request_type']
   request_count = row['request_count']
+
+  if projects.key?(tenant_id)
+    tenant_name = projects[tenant_id]
+  else
+    tenant_name = tenant_id
+  end
 
   unless results.key?(date)
     results[date] = {}
