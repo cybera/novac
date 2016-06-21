@@ -1,0 +1,35 @@
+#!/bin/bash
+
+usage() {
+  echo "Usage: novac glance-member <create,add|delete,remove> <image id> <tenant id>"
+  exit 1
+}
+
+if [[ $# -lt 3 ]]; then
+  usage
+fi
+
+action="$1"
+image_id="$2"
+tenant_id="$3"
+
+if [[ $action != "create" ]] && [[ $action != "delete" ]] && [[ $action != "add" ]] && [[ $action != "remove" ]]; then
+  usage
+fi
+
+
+if [[ $action == "create" ]] || [[ $action == "add" ]]; then
+  # nova-ab
+  source /root/openrc && glance member-create $image_id $tenant_id
+
+  # nova-qc
+  #ssh nova-qc "source /root/openrc && glance member-create $image_id $tenant_id"
+fi
+
+if [[ $action == "delete" ]] || [[ $action == "remove" ]]; then
+  # nova-ab
+  source /root/openrc && glance member-delete $image_id $tenant_id
+
+  # nova-qc
+  #ssh nova-qc "source /root/openrc && glance member-delete $image_id $tenant_id"
+fi

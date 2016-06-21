@@ -1,0 +1,35 @@
+#!/bin/bash
+
+usage() {
+  echo "Usage: novac flavor-access <add|remove> <flavor> <tenant id>"
+  exit 1
+}
+
+if [[ $# -lt 3 ]]; then
+  usage
+fi
+
+action="$1"
+flavor="$2"
+tenant_id="$3"
+
+if [[ $action != "add" ]] && [[ $action != "remove" ]]; then
+  usage
+fi
+
+
+if [[ $action == "add" ]]; then
+  # nova-ab
+  source /root/openrc && nova flavor-access-add $flavor $tenant_id
+
+  # nova-qc
+  ssh nova-qc "source /root/openrc && nova flavor-access-add $flavor $tenant_id"
+fi
+
+if [[ $action == "remove" ]]; then
+  # nova-ab
+  source /root/openrc && nova flavor-access-remove $flavor $tenant_id
+
+  # nova-qc
+  ssh nova-qc "source /root/openrc && nova flavor-access-remove $flavor $tenant_id"
+fi
