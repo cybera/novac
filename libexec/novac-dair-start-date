@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# Usage: novac dair-start-date <project> <expiration date>
+# Summary: Handles a user's expiration date
+# Help: Handles a user's expiration date
+
+source /root/openrc
+
+if [ "$1" = "" -o "$2" = "" ]; then
+  echo "Usage: novac-dair-start-date <set|delete> <project> <date>"
+  exit 1
+fi
+
+if [[ "$1" != "add" && "$1" != "delete" && "$1" != "del" && "$1" != "set" ]]; then
+  echo "Valid actions are add, set, or delete."
+  exit 1
+fi
+
+if [[ "$1" == "add" || "$1" == "set" ]] && [[ "$3" == "" ]]; then
+  echo "Usage: novac-dair-start-date <set|delete> <project> <date>"
+  exit 1
+fi
+
+action=$1
+shift
+project=$1
+shift
+date="${@}"
+
+echo "Project: $project"
+
+# See if the date is valid
+new_date=$(date -d "$date" +"%B %d, %Y")
+if [[ $? == 1 ]]; then
+  echo "Invalid date format."
+  exit 1
+fi
+
+keystone tenant-get $project &> /dev/null
+if [[ $? == 1 ]]; then
+  echo "Project not found."
+  exit 1
+fi
+
+grep -q ^$project: /etc/openstack-dashboard/start-dates.txt
+if [[ $? == 0 ]]; then
+  # The project already exists in the file
+  if [[ $action == "add" || $action == "set" ]]; then
+    sed -i -e "s/^$project:.*/$project:$new_date/" /etc/openstack-dashboard/start-dates.txt
+    if [[ $? != 0 ]]; then
+      echo "Error setting date."
+      exit $?
+    fi
+  fi
+
+  if [[ $action == "del" || $action == "delete" ]]; then
+    sed -i -e "/^$project:/d" /etc/openstack-dashboard/start-dates.txt
+    if [[ $? != 0 ]]; then
+      echo "Error deleting date."
+      exit $?
+    fi
+  fi
+else
+  # The project does not exist in the file
+  if [[ $action == "add" || $action == "set" ]]; then
+    echo "$project:$new_date" >> /etc/openstack-dashboard/start-dates.txt
+    if [[ $? != 0 ]]; then
+      echo "Error adding date."
+      exit $?
+    fi
+  else
+    echo "Invalid action."
+    exit 1
+  fi
+fi

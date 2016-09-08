@@ -34,6 +34,7 @@ projects = Projects.new
 quota = {}
 resources_used = {}
 to_report = {}
+total_usage = {}
 
 if project
   p = projects.fuzzy_search(project)
