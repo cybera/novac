@@ -26,17 +26,6 @@ if region != "alberta" && region != "quebec"
   exit 1
 end
 
-# Figure out the correct directory for the logs
-nova_log_dir = ""
-swift_log_dir = ""
-if region == "alberta"
-  nova_log_dir = "nova-ab"
-  swift_log_dir = "swift-ab"
-else
-  nova_log_dir = "nova-qc"
-  swift_log_dir = "swift-qc"
-end
-
 novadb = NovaDB2.instance
 db = novadb.clouds[region]['mysql']['nova']
 api_db = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => 'api_reports' )
@@ -54,10 +43,10 @@ ignore_projects = ["nagioscheck"]
 
 # Build a map of services and how to parse their log files
 api_queries = {
-  'servers' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/#{nova_log_dir}/nova.log#{file} | awk '{print $4, $5, $6, $12, $13, $14, $15}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  'volumes' => "zgrep eventlet.wsgi.server /opt/rsyslog/#{nova_log_dir}/cinder.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  'image'   => "zgrep glance.wsgi.server /opt/rsyslog/#{nova_log_dir}/glance.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}' | sed -e 's/\"//g'",
-  'object'  => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/#{swift_log_dir}/swift.log#{file} | awk '{print $4, $6, $9, $10, $24}' | grep -v headers",
+  'servers' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/nova.log#{file} | awk '{print $4, $5, $6, $12, $13, $14, $15}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'volumes' => "zgrep eventlet.wsgi.server /opt/rsyslog/cinder.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  #'image'   => "zgrep glance.wsgi.server /opt/rsyslog/glance.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}' | sed -e 's/\"//g'",
+  'object'  => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/swift.log#{file} | awk '{print $4, $6, $9, $10, $24}' | grep -v headers",
 }
 
 # Swift tenant IDs must be pulled from a substring
