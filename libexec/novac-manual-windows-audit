@@ -1,0 +1,80 @@
+#!/usr/bin/env ruby
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'time'
+require 'date'
+require 'novadb2'
+require 'helpers/projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Windows Image Information
+IMAGES = {
+  '2ebc4c91-8b3d-472d-9189-6faabcd9e5e2' => 'Windows 2012',
+  'bd5c3744-71be-4439-a757-8b1a58add673' => 'Windows 2012',
+  '13f28ae9-b9c9-47bb-b57d-05b68bd5bdfe' => 'Windows 2012',
+  '79f01306-8ea4-40d5-972e-6c78247009a6' => 'Windows 2012',
+  'fffee34c-d3d0-47a0-9716-47ce16244769' => 'Windows 7',
+  '54696816-67e7-4107-b744-0506b5d283ed' => 'Windows 7',
+  '7eecedab-5123-422d-b766-1d513b45396e' => 'Windows 2008 R2',
+  '0decc679-e437-487f-8077-3c89b32fae58' => 'Windows 2008 R2',
+  '87ef156c-de7f-4760-ae1f-2f04d041728e' => 'Windows 2008 R2',
+  '086f3cec-4921-4df2-a681-aeea7e09e5b5' => 'Windows 2008 R2',
+  '5d5e796d-b745-4ea8-8549-d073ea787c24' => 'Windows 2008 R2',
+  'e47f3e0e-d2c4-48f9-9f54-c3c4cf574f62' => 'Windows 2008 R2',
+}
+
+# Print heading
+puts
+printf("%s, %s, %s, %s\n", "Image", "ID", "Name", "Host")
+75.times { print '-' }
+puts
+
+tenants = {}
+projects = Projects.new
+novadb = NovaDB2.instance
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+novadb.regions.each do |region,creds|
+  # Query for all instances launched after Jan 1 2013
+  openstack.instance_launches_since_jan2013(region).each do |row|
+    image_ref = row[:image_ref]
+    # If the image is a snapshot, get the base_image_ref
+    image_properties = openstack.image_properties_query(image_ref)
+    image_properties.each do |image_property|
+      if image_property[:name] == 'base_image_ref'
+        image_ref = image_property[:value]
+      end
+    end
+
+    # Was the instance a windows image?
+    if IMAGES.keys.include?(image_ref)
+      # Hash for instances
+      instance = {}
+
+      # If the instance was terminated
+      if (row[:vm_state] == 'deleted')
+        next
+      end
+
+
+      # Filter unwanted instances
+      next if row[:vm_state] == 'error'
+      next if row[:vm_state] == 'building'
+
+      printf("%s, %s, %s, %s\n", IMAGES[image_ref], row[:uuid], row[:display_name], row[:node])
+
+      #tenant = projects.projects[row[:project_id]]
+      #tenants[tenant] = [] if ! tenants.has_key?(tenant)
+      #tenants[tenant].push(instance)
+    end
+  end
+end
+
