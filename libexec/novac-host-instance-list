@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+
+# Usage: novac host-instance-list <fqdn of host>
+# Summary: List all instances on a host
+# Help: This command shows the ID, Project, State, User, Name, IPv4, Flavor, Key, and Image
+
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+novadb = NovaDB2.instance
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+host=''
+if ARGV[0]
+  host = ARGV[0]
+else
+  throw "Please specify a host"
+end
+
+projects = Projects.new.projects
+rows = []
+
+novadb.regions.each do |region|
+  begin
+    instances = openstack.instances_by_host(region, host)
+    instances.each do |row|
+
+      # Shorten the Instance IRequires host to be specifieD
+      instance_id_short = row[:uuid].split('-')[0]
+
+      # Project name
+      project = projects[row[:project_id]]
+
+      # Image name
+      image = openstack.image_by_id(row[:image_ref])[:name]
+
+      # Build the output row
+      rows << [row[:uuid], project, row[:hostname], row[:floating_ip], row[:vm_state], row[:flavor], image]
+    end
+  end
+end
+
+# Print report
+headings = ['ID', 'Project', 'Instance', 'Floating IP', 'VM State', 'Flavor', 'Image']
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+

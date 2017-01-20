@@ -20,6 +20,17 @@ class Icehouse
     ")
   end
 
+  def instances_by_host(region=nil, host)
+    @novadb.get_database('nova', region).fetch("
+      select uuid, instances.project_id, hostname, image_ref,
+        floating_ips.address as floating_ip, vm_state, instance_types.name as flavor
+      from instances inner join instance_types on instances.instance_type_id=instance_types.id
+                inner join fixed_ips on instances.uuid=fixed_ips.instance_uuid
+                left join floating_ips on fixed_ips.id=floating_ips.fixed_ip_id
+      where instances.deleted = 0 and instances.host = '#{host}'
+    ")
+  end
+
   def instances_by_project(project_id, region = nil)
     @novadb.get_database('nova', region).fetch("
       select id, display_name from instances
