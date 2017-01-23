@@ -94,16 +94,26 @@ midnight = Time.new(now.year, now.month, now.day, 0, 0, 0, '+00:00')
     total_cpu += cpu
     total_disk += disk
 
-    puts "projects.#{project_id}.cloud_usage.#{location}.instances #{instances} #{t}"
-    puts "projects.#{project_id}.cloud_usage.#{location}.memory #{memory} #{t}"
-    puts "projects.#{project_id}.cloud_usage.#{location}.cpu #{cpu} #{t}"
-    puts "projects.#{project_id}.cloud_usage.#{location}.disk #{disk} #{t}"
+    # Emulate every hour of the day
+    24.downto(1) do |fake_hour|
+      fake_time = today - (60 * 60 * fake_hour)
+      fake_time = fake_time.to_i
+
+      puts "projects.#{project_id}.cloud_usage.#{location}.instances #{instances} #{fake_time}"
+      puts "projects.#{project_id}.cloud_usage.#{location}.memory #{memory} #{fake_time}"
+      puts "projects.#{project_id}.cloud_usage.#{location}.cpu #{cpu} #{fake_time}"
+      puts "projects.#{project_id}.cloud_usage.#{location}.disk #{disk} #{fake_time}"
+    end
   end
 
-  puts "cloud_usage.#{location}.instances #{total_instances} #{t}"
-  puts "cloud_usage.#{location}.memory #{total_memory} #{t}"
-  puts "cloud_usage.#{location}.cpu #{total_cpu} #{t}"
-  puts "cloud_usage.#{location}.disk #{total_disk} #{t}"
+  24.downto(1) do |fake_hour|
+    fake_time = today - (60 * 60 * fake_hour)
+    fake_time = fake_time.to_i
 
+    puts "cloud_usage.#{location}.instances #{total_instances} #{fake_time}"
+    puts "cloud_usage.#{location}.memory #{total_memory} #{fake_time}"
+    puts "cloud_usage.#{location}.cpu #{total_cpu} #{fake_time}"
+    puts "cloud_usage.#{location}.disk #{total_disk} #{fake_time}"
+  end
   sleep 0.5
 end
