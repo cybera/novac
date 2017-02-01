@@ -40,9 +40,9 @@ ignore_projects = ["nagioscheck"]
 
 # Build a map of services and how to parse their log files
 api_queries = {
-  'nova' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/nova.log#{file} | awk '{print $4, $5, $6, $12, $13, $14, $15}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  'cinder' =>  "zgrep eventlet.wsgi.server /opt/rsyslog/cinder.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  'swift' => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/swift.log#{file} | awk '{print $4, $6, $8, $9, $10}' | grep -v headers",
+  'nova' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/nova.log#{file} | awk '{print $2, $3, $4, $10, $11, $12, $13}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'cinder' =>  "zgrep eventlet.wsgi.server /opt/rsyslog/cinder.log#{file} | awk '{print $2, $3, $4, $10, $14, $19, $20}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'swift' => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/swift.log#{file} | awk '{print $2, $4, $6, $7, $8}' | grep -v headers",
 }
 
 # Swift tenant IDs must be pulled from a substring
@@ -71,11 +71,11 @@ api_queries.each do |api, query|
       end
     else
       begin
-        server, date, time, tenant_id, ip, req_type, req = row.split
+        server, date, time, tenant_id, ips, req_type, req = row.split
+        ip = ips.split(',')[0]
         year, month, day = date.split('-')
         time = time.split('.')[0]
         tenant_name = projects[tenant_id]
-      rescue
       rescue
         next
       end

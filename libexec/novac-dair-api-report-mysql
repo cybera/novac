@@ -43,10 +43,9 @@ ignore_projects = ["nagioscheck"]
 
 # Build a map of services and how to parse their log files
 api_queries = {
-  'servers' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/nova.log#{file} | awk '{print $4, $5, $6, $12, $13, $14, $15}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  'volumes' => "zgrep eventlet.wsgi.server /opt/rsyslog/cinder.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
-  #'image'   => "zgrep glance.wsgi.server /opt/rsyslog/glance.log#{file} | awk '{print $4, $5, $6, $12, $16, $21, $22}' | sed -e 's/\"//g'",
-  'object'  => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/swift.log#{file} | awk '{print $4, $6, $9, $10, $24}' | grep -v headers",
+  'nova' => "zgrep nova.osapi_compute.wsgi.server /opt/rsyslog/nova.log#{file} | awk '{print $2, $3, $4, $10, $11, $12, $13}' | sed -e 's/\]//g' -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'cinder' =>  "zgrep eventlet.wsgi.server /opt/rsyslog/cinder.log#{file} | awk '{print $2, $3, $4, $10, $14, $19, $20}'  | grep -v accepted | sed -e 's/,127.0.0.1//g' -e 's/\"//g'",
+  'swift' => "zgrep -E 'GET|POST|PUT|DELETE' /opt/rsyslog/swift.log#{file} | awk '{print $2, $4, $6, $7, $8}' | grep -v headers",
 }
 
 # Swift tenant IDs must be pulled from a substring
@@ -61,17 +60,20 @@ api_queries.each do |api, query|
 
     begin
       case api
-      when "object"
-        server, ip, request_type, request, date = row.split
-        d = date.to_f
-        date = Time.at(d).getlocal.strftime("%Y-%m-%d")
-        time = Time.at(d).getlocal.strftime("%H:%M:%S:%6N")
-        match = request.match swift_tenant_id_re
+      when "swift"
+        server, ip, date, req_type, req = row.split
+        day, month, year, hour, minute, second = date.split('/')
+        date = Time.utc(year, month, day, hour, minute, second).getlocal.strftime("%Y/%m/%d/%H/%M/%S")
+        year, month, day, hour, minute, second = date.split('/')
+        time = "#{hour}:#{minute}:#{second}"
+        match = req.match swift_tenant_id_re
         tenant_id = match[1]
         tenant_name = projects[tenant_id]
       else
-        server, date, time, tenant_id, ip, request_type, request = row.split
-        ip = ip.split(',')[0]
+        server, date, time, tenant_id, ips, req_type, req = row.split
+        ip = ips.split(',')[0]
+        year, month, day = date.split('-')
+        time = time.split('.')[0]
         tenant_name = projects[tenant_id]
       end
     rescue
@@ -79,18 +81,18 @@ api_queries.each do |api, query|
     end
 
     next if ignore_projects.include?(tenant_name)
-    next if request_type == nil
+    next if req_type == nil
     next if tenant_id == 'GET'
     next if tenant_id == 'wsgi'
     next if tenant_id == '-'
-    next if not ['GET', 'POST', 'DELETE', 'PUT', 'HEAD'].include?(request_type)
+    next if not ['GET', 'POST', 'DELETE', 'PUT', 'HEAD'].include?(req_type)
     #next if ip == '208.75.75.119'
 
     date_time = "#{date} #{time}"
 
     begin
-      api_db.query "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{request_type}', '#{request}')"
-      #puts "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{request_type}', '#{request}')"
+      api_db.query "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{req_type}', '#{req}')"
+      #puts "insert ignore into log (log_date, service, tenant_id, ip, request_type, request) VALUES ('#{date_time}', '#{api}', '#{tenant_id}', '#{ip}', '#{req_type}', '#{request}')"
     rescue
       next
     end
