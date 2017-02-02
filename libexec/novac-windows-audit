@@ -13,10 +13,14 @@ end
 
 # Windows Image Information
 IMAGES = {
+  'c59bc527-403a-4b33-bb0c-22d230c2b62a' => 'Windows 2016',
+  'd3d10cb5-dec8-4e27-9a16-9be18b09c671' => 'Windows 2016',
   '2ebc4c91-8b3d-472d-9189-6faabcd9e5e2' => 'Windows 2012',
   'bd5c3744-71be-4439-a757-8b1a58add673' => 'Windows 2012',
   '13f28ae9-b9c9-47bb-b57d-05b68bd5bdfe' => 'Windows 2012',
   '79f01306-8ea4-40d5-972e-6c78247009a6' => 'Windows 2012',
+  '9ae8c460-0715-4a07-ba7d-1b4ff8320aa8' => 'Windows 2012',
+  '95b39ce2-5904-4bee-829e-5c3e54a6633a' => 'Windows 2012',
   'fffee34c-d3d0-47a0-9716-47ce16244769' => 'Windows 7',
   '54696816-67e7-4107-b744-0506b5d283ed' => 'Windows 7',
   '7eecedab-5123-422d-b766-1d513b45396e' => 'Windows 2008 R2',
