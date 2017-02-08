@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Usage: novac host-instance-list <fqdn of host>
-# Summary: List all instances on a host
+# Summary: List all instances on a host for copying into Jira
 # Help: This command shows the ID, Project, State, User, Name, IPv4, Flavor, Key, and Image
 
 
@@ -56,6 +56,22 @@ end
 # Print report
 headings = ['ID', 'Project', 'Instance', 'Floating IP', 'VM State', 'Flavor', 'Image']
 
-table = Terminal::Table.new :headings => headings, :rows => rows
-puts table
+if ARGV[1] && ARGV[1] == "--jira"
+  # Jira style text for copy/paste
+  headings.each do |heading|
+    print "|| #{heading} "
+  end
+  print "||\n"
+
+  rows.each do |row|
+    row.each do |cell|
+      print "| #{cell} "
+    end
+
+    print "|\n"
+  end
+else
+  table = Terminal::Table.new :headings => headings, :rows => rows
+  puts table
+end
 
