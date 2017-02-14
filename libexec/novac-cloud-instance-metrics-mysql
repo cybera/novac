@@ -10,7 +10,6 @@ now = Time.now
 time = Time.new(now.year, now.month, now.day, now.hour, now.min, 0).getgm.to_i
 region = %x{ facter location }.chomp
 db = novadb.clouds[region]['mysql']['nova']
-
 instance_metrics = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => 'instance_metrics' )
 
 instances = {}
@@ -19,7 +18,6 @@ collection_output.split("\n").each do |line|
   pieces = line.split(/\s+/)
   uuid = pieces.shift
   metric_category = pieces.shift
-
   data = {}
   data['uuid'] = uuid
   pieces.each do |p|
@@ -27,17 +25,14 @@ collection_output.split("\n").each do |line|
     data[k] = v
   end
   values = data.values.map { |v| "'#{v}'" }
-
   insert_query = ""
   if metric_category == 'instance'
     insert_query = "insert ignore into instance (uuid, instance) values (#{values.join(', ')})"
   else
     insert_query = "insert into #{metric_category} (#{data.keys.join(', ')}, timestamp) VALUES (#{values.join(', ')}, '#{time}')"
   end
-
   begin
     instance_metrics.query insert_query
-    #puts insert_query
   rescue
     next
   end
