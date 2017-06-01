@@ -8,7 +8,6 @@ $:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
 require 'rubygems'
 require 'mysql2'
 require 'novadb2'
-require 'pp'
 
 location = %x{ facter location }.chomp
 novadb = NovaDB2.instance
@@ -20,16 +19,22 @@ now = Time.new(now.year, now.month, now.day, now.hour, 0, 0).getgm.to_i
 past_hour = now - (3600 * 1)
 
 queries = {
-  'cpu'       => "select * from cpu limit 10", #where timestamp #< #{now} and timestamp > #{past_hour}",
-  'memory'    => "select * from memory limit 10", #where timestamp < #{now} and timestamp > #{past_hour}",
-  'disk'      => "select * from disk limit 10", #where timestamp < #{now} and timestamp > #{past_hour}",
-  'interface' => "select * from interface limit 10", #where timestamp < #{now} and timestamp > #{past_hour}",
+  'cpu'       => "select * from cpu where timestamp > 1487874600",
+  'memory'    => "select * from memory where timestamp > 1487874600",
+  'disk'      => "select * from disk where timestamp > 1487874600",
+  'interface' => "select * from interface where timestamp > 1487874600",
 }
 
 instance_metrics = Mysql2::Client.new( :host => db[:host], :username => db[:user], :password => db[:password], :database => 'instance_metrics' )
 
+metrics_count = 0
+
 queries.each do |metric, query|
-  query_rs = instance_metrics.query query
+  if metric.start_with?('disk')
+    metric = 'disk'
+  end
+
+  query_rs = instance_metrics.query query, :cache_rows => false
   query_rs.each do |row|
     if itop.key?(row['uuid'])
       project_id = itop[row['uuid']]
@@ -66,7 +71,13 @@ queries.each do |metric, query|
     end
 
     row.each do |k, v|
-      puts "prod.projects.#{project_id}.instances.#{uuid}.#{metric}#{submetric}.#{k} #{v} #{timestamp}"
+      puts "projects.#{project_id}.instances.#{uuid}.#{metric}#{submetric}.#{k} #{v} #{timestamp}"
+      metrics_count += 1
+    end
+
+    if metrics_count > 20000
+      metrics_count = 0
+      sleep 2
     end
   end
 end
