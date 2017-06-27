@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Usage: novac flavor-access <add|remove> <flavor> <project id>
+# Summary: Give or remove access to a flavor to a project
+# Help: Give or remove access to a flavor to a project
+
 usage() {
   echo "Usage: novac flavor-access <add|remove> <flavor> <tenant id>"
   exit 1
