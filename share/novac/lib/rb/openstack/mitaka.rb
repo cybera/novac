@@ -1,7 +1,7 @@
 require 'novadb2'
 require 'sequel'
 
-class Icehouse
+class Mitaka
 
   def initialize
     @novadb = NovaDB2.instance
