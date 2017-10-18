@@ -101,18 +101,19 @@ end
 
 # Get the date of the first record in the log
 # This is to help support archiving old log files
-year, month, day = file_date.split('/')
+if !file_date.nil?
+ year, month, day = file_date.split('/')
 
 # Write the rows to a csv file
-CSV.open("/tmp/swift_api_logs.csv", "wb") do |csv|
-  rows.each do |row|
-    csv << row
-  end
-end
+ CSV.open("/tmp/swift_api_logs.csv", "wb") do |csv|
+   rows.each do |row|
+     csv << row
+   end
+ end
 
 # Upload everything to Swift
 # Configure Swift to build aggregated csv files on the fly
-system <<-EOC
+ system <<-EOC
 . /root/openrc
 echo > /tmp/swift_placeholder.txt
 swift post logs
@@ -124,3 +125,4 @@ swift upload -H 'X-Object-Manifest: logs/api_segments/#{region}-#{year}-' logs -
 swift upload -H 'X-Object-Manifest: logs/api_segments/#{region}-#{year}-#{month}-' logs --object-name api/#{region}/#{year}/#{region}-#{year}-#{month}.csv /tmp/swift_placeholder.txt
 swift upload -H 'X-Object-Manifest: logs/api_segments/#{region}-#{year}-#{month}-#{day}' logs --object-name api/#{region}/#{year}/#{month}/#{region}-#{year}-#{month}-#{day}.csv /tmp/swift_placeholder.txt
 EOC
+end
