@@ -391,6 +391,15 @@ class Mitaka
     ")
   end
 
+  def volume_type_query(region = nil)
+    cinder_db = @novadb.get_database_name('cinder', region)
+    @novadb.get_database('cinder', region).fetch("
+      select volumes.id as id, project_id, size, attach_status, volumes.display_name as volume, volume_types.name as volume_type
+      from volumes inner join #{cinder_db}.volume_types on volumes.volume_type_id=volume_types.id
+      where status in ('in-use', 'available') order by volumes.display_name, status
+    ")
+  end
+
   def volumes_by_project(project_id, region = nil)
     @novadb.get_database('cinder', region).fetch("
       select id, display_name from volumes

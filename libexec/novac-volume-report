@@ -1,0 +1,62 @@
+#!/usr/bin/env ruby
+# Usage: novac list-volumes
+# Summary: List all volumes in both regions
+# Help: This command shows the ID, Name, Project, Status, Attach, Instance, Mountpoint, Size, Host, and Region
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+# Get a list of clouds
+novadb = NovaDB2.instance
+projects = Projects.new.projects
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+rows = {}
+
+novadb.regions.each do |region, creds|
+  begin
+    volumes = openstack.volume_type_query(region)
+    volumes.each do |row|
+      # Get the project name
+      project = projects[row[:project_id]]
+
+      # Protection against nil projects
+      if project == nil
+        project = 'MISSING PROJECT'
+      end
+
+      # Build the output row
+      if not rows.has_key?(project)
+        rows[project] = []
+      end
+      rows[project] << [row[:id], project, row[:volume], row[:attach_status], row[:size], row[:volume_type], region]
+    end
+  end
+end
+
+# Print report
+headings = ['ID', 'Project', 'Name', 'Status', 'Size (GB)', 'Type', 'Region']
+
+# Sort based on project
+r = []
+rows.keys.sort.each do |project|
+  rows[project].each do |row|
+    r << row
+  end
+end
+
+table = Terminal::Table.new :headings => headings, :rows => r
+puts table
+
