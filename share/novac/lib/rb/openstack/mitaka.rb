@@ -338,6 +338,12 @@ class Mitaka
     ")
   end
 
+  def email_from_extra_field(project_id = nil, region = nil)
+    @novadb.get_database('keystone', region).fetch("
+      select extra from user where default_project_id='#{project_id}'
+    ")
+  end
+
 
   # Glance
   def images_query(region = nil)

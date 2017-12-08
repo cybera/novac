@@ -27,10 +27,38 @@ rows = {}
 
 novadb.regions.each do |region, creds|
   begin
+    # In DAIR we have more projects than volumes, so we'll look up extra info per volume.
+    # Not super performant but completely acceptable given the scale. Takes ~10 seconds to run.
+
+    # Get the volume details
     volumes = openstack.volume_type_query(region)
     volumes.each do |row|
       # Get the project name
       project = projects[row[:project_id]]
+
+      # Get the extra data from the user on a project
+      email = ""
+      if not row[:project_id]
+        email = "Email not available"
+      else
+        extra_field = openstack.email_from_extra_field(row[:project_id]).first
+        email = extra_field[:extra][11..-3]
+      end
+
+      # Get the quota for a project...
+      # Or is this part of a Quotas object?
+      volume_quota = 0
+      if not row[:project_id]
+        volume_quota = "Quota not available"
+      else
+        volume_result = openstack.cinder_project_quota(row[:project_id], region)
+        # Catch if a quota is not set
+        if volume_result.first
+          volume_quota = volume_result[:gigabytes][:hard_limit]
+        else
+          volume_quota = "N/A"
+        end
+      end
 
       # Protection against nil projects
       if project == nil
@@ -41,13 +69,13 @@ novadb.regions.each do |region, creds|
       if not rows.has_key?(project)
         rows[project] = []
       end
-      rows[project] << [row[:id], project, row[:volume], row[:attach_status], row[:size], row[:volume_type], region]
+      rows[project] << [row[:id], project, email, row[:volume], row[:attach_status], row[:size], volume_quota, row[:volume_type], region]
     end
   end
 end
 
 # Print report
-headings = ['ID', 'Project', 'Name', 'Status', 'Size (GB)', 'Type', 'Region']
+headings = ['ID', 'Project', 'Email', 'Name', 'Status', 'Size (GB)', 'Quota', 'Type', 'Region']
 
 # Sort based on project
 r = []
