@@ -72,6 +72,14 @@ class Mitaka
     ")
   end
 
+  def open_secgroups(region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select security_groups.project_id, security_groups.name as security_group, from_port, to_port, cidr, protocol
+      from security_group_rules inner join security_groups on security_groups.id=security_group_rules.parent_group_id
+      where security_group_rules.deleted = 0 AND protocol != 'icmp' AND cidr = '0.0.0.0/0'
+    ")
+  end
+
   def instance_launches_since_jan2013(region = nil)
     @novadb.get_database('nova', region).fetch("
       select * from instances
@@ -277,6 +285,13 @@ class Mitaka
   def enabled_projects(region = nil)
     @novadb.get_database('keystone', region).fetch("
       select id, name from project where enabled = 1
+    ")
+  end
+
+  def all_projects_with_email(region = nil)
+    @novadb.get_database('keystone', region).fetch("
+      select project.id, project.name, user.extra as email from project
+      left join user on default_project_id=project.id
     ")
   end
 

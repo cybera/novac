@@ -43,6 +43,14 @@ class Projects
     projects
   end
 
+  def all_projects_with_email
+    projects = {}
+    @openstack.all_projects_with_email.each do |row|
+      projects[row[:id]] = {:name => row[:name], :email => row[:email] }
+    end
+    projects
+  end
+
 
   def fuzzy_search(x)
 

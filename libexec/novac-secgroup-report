@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+# Usage: novac secgroup-report
+# Summary: Print out a report of any non ICMP security group rule that is set to 0.0.0.0/0
+# Help: Print out a report of any non ICMP security group rule
+# eg. novac secgroup-report
+# Best run as novac secgroup-report | grep -v ARCHIVED
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+projects = Projects.new.projects
+
+# Objects
+projects = Projects.new
+novadb = NovaDB2.instance
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+rows = []
+project_list = projects.all_projects_with_email
+novadb.regions.each do |region, creds|
+  openstack.open_secgroups(region).each do |row|
+
+    # Skip security groups belonging to projects that have been deleted
+    if not project_list[row[:project_id]]
+      next
+    end
+
+    project_name = project_list[row[:project_id]][:name]
+    email = ''
+    if not project_list[row[:project_id]][:email]
+      email = "No email"
+    else
+      email = project_list[row[:project_id]][:email][11..-3]
+    end
+
+    rows << [ project_name, email, row[:name], row[:protocol], row[:from_port], row[:to_port], row[:cidr] ]
+  end
+end
+
+#Print report
+headings = [ 'Project', 'Name', 'Protocol', 'Start Port', 'End Port', 'CIDR' ]
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+
