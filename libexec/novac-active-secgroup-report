@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+# Usage: novac active-secgroup-report
+# Summary: Print out a report of any instance that has security group rules applied to it with a CIDR of 0.0.0.0/0
+# Help: Print out a report of any non ICMP security group rule
+# eg. novac active-secgroup-report
+
+$:.unshift File.expand_path("../../share/novac/lib/rb", __FILE__)
+require 'rubygems'
+require 'terminal-table'
+require 'novadb2'
+require 'helpers/projects'
+
+# Ensure root or sudo is used for this command
+if Process.euid != 0
+  throw "Must run this script as root or use sudo."
+end
+
+projects = Projects.new.projects
+
+# Objects
+projects = Projects.new
+novadb = NovaDB2.instance
+
+# Get the OpenStack Query Library
+os_release = novadb.get_openstack_release
+require "openstack/#{os_release}"
+openstack = Object.const_get(os_release.capitalize).new
+
+rows = []
+project_list = projects.all_projects_with_email
+novadb.regions.each do |region, creds|
+
+  instances = openstack.instances_query(region)
+  instances.each do |row|
+    rule_text=''
+    email=''
+    secgroup_name=''
+    description=''
+
+    project = project_list[row[:project_id]]
+
+    # Obtain security group rules
+
+    rules = openstack.secgroup_rules_for_instance(row[:uuid])
+
+    # If rules is empty skip
+    if rules.count == 0
+      next
+    end
+
+    # This doesn't handle multiple security groups correctly - only shows last alphabetical name. Most users only have one anyway.
+    rules.each do |rule|
+      rule_text += "#{rule[:protocol]}\t#{rule[:from_port]}\t#{rule[:to_port]}\t#{rule[:cidr]}\n"
+      secgroup_name = rule[:name]
+      description = rule[:description]
+    end
+
+    if not project[:email]
+      email = 'No email'
+    else
+      email = project[:email][11..-3]
+    end
+
+    rows << [ project[:name], row[:project_id], email, row[:uuid], row[:vm_state], row[:floating_ip], secgroup_name, description, rule_text]
+
+  end
+
+end
+
+#Print report
+headings = [ 'Project', 'Project ID', 'Email', 'Instance', 'Instance UUID', 'Status', 'Floating IP', 'Security Group Name', 'Security Group Description', 'Rules']
+
+table = Terminal::Table.new :headings => headings, :rows => rows
+puts table
+

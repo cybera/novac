@@ -80,6 +80,16 @@ class Mitaka
     ")
   end
 
+  def secgroup_rules_for_instance(instance_uuid, region = nil)
+    @novadb.get_database('nova', region).fetch("
+      select security_groups.name, security_groups.description, from_port, to_port, cidr, protocol
+      from security_group_rules
+      join security_groups on security_groups.id=security_group_rules.parent_group_id
+      join security_group_instance_association on security_group_id = security_groups.id
+      where security_group_rules.deleted = 0 AND protocol != 'icmp' AND cidr = '0.0.0.0/0' and instance_uuid = '#{instance_uuid}'
+    ")
+  end
+
   def instance_launches_since_jan2013(region = nil)
     @novadb.get_database('nova', region).fetch("
       select * from instances
