@@ -331,8 +331,9 @@ class Mitaka
 
   def users(region = nil)
     @novadb.get_database('keystone', region).fetch("
-      select id, name
+      select user.id as id, name
       from user
+      join local_user on user_id=user.id
     ")
   end
 
