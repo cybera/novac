@@ -25,6 +25,8 @@ if Process.euid != 0
   throw "Must run this script as root or use sudo."
 end
 
+puts "Please note, this command takes ~3.5 minutes to run"
+
 # Total Counters
 
 project_ever_had_instance_count = 0
@@ -59,8 +61,8 @@ novadb.regions.each do | region |
   project_ever_had_volume_regional_count[region] = 0
   volume_in_region_count[region] = 0
   project_with_active_volume_regional_count[region] = 0
-  instance_count[region] = openstack.instance_count(region)["count"][:count]
-  volume_count[region] = openstack.volume_count(region)["count"][:count]
+  instance_count[region] = openstack.instance_count(region).first[:count]
+  volume_count[region] = openstack.volume_count(region).first[:count]
 end
 
 # Iterate through projects checking active and historically used resources in each region.
@@ -72,10 +74,10 @@ project_list.project_ids.each do |project_id|
   cloud_volume_flag = 0
 
   novadb.regions.each do | region |
-    active_instance_count = openstack.active_instances_count(project_id, region)["count"][:count]
-    deleted_instance_count = openstack.deleted_instances_count(project_id, region)["count"][:count]
-    active_volume_count = openstack.active_volumes_count(project_id, region)["count"][:count]
-    deleted_volume_count = openstack.deleted_volumes_count(project_id, region)["count"][:count]
+    active_instance_count = openstack.active_instances_count(project_id, region).first[:count]
+    deleted_instance_count = openstack.deleted_instances_count(project_id, region).first[:count]
+    active_volume_count = openstack.active_volumes_count(project_id, region).first[:count]
+    deleted_volume_count = openstack.deleted_volumes_count(project_id, region).first[:count]
 
     # Update project's counters for instances
     if(active_instance_count > 0)
@@ -168,5 +170,4 @@ novadb.regions.each do | region |
   puts "Active Volume:                #{(project_with_active_volume_regional_count[region] / project_count.to_f * 100).round()} % (#{project_with_active_volume_regional_count[region]})"
   puts ""
 end
-
 
