@@ -547,8 +547,9 @@ class Mitaka
            ]
       ds.update
     elsif count == 0
-      ds = db['insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit)
-               values (now(), now(), 0, ?, ?, ?)',
+      # Allocated is not actually used - instead the usages table is used but needs to be set or else it's set to NULL
+      ds = db['insert into quotas (created_at, updated_at, deleted, project_id, resource, hard_limit, allocated)
+               values (now(), now(), 0, ?, ?, ?, 0)',
                project_id, resource, limit
            ]
       ds.insert
