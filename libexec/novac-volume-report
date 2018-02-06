@@ -41,8 +41,12 @@ novadb.regions.each do |region, creds|
       if not row[:project_id]
         email = "Email not available"
       else
-        extra_field = openstack.email_from_extra_field(row[:project_id]).first
-        email = extra_field[:extra][11..-3]
+        extra_field = openstack.email_from_extra_field(row[:project_id])
+        if extra_field.count == 1
+          email = extra_field.first[:extra][11..-3]
+        else
+          email = "Email not available"
+        end
       end
 
       # Get the quota for a project...
