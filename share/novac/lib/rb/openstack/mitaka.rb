@@ -364,9 +364,9 @@ class Mitaka
     ")
   end
 
-  def email_from_extra_field(project_id = nil, region = nil)
+  def email_from_extra_field(user_id = nil, region = nil)
     @novadb.get_database('keystone', region).fetch("
-      select extra from user where default_project_id='#{project_id}'
+      select extra from user where id='#{user_id}'
     ")
   end
 
@@ -426,7 +426,7 @@ class Mitaka
   def volume_type_query(region = nil)
     cinder_db = @novadb.get_database_name('cinder', region)
     @novadb.get_database('cinder', region).fetch("
-      select volumes.id as id, project_id, size, attach_status, volumes.display_name as volume, volume_types.name as volume_type
+      select volumes.id as id, project_id, user_id, size, attach_status, volumes.display_name as volume, volume_types.name as volume_type
       from volumes inner join #{cinder_db}.volume_types on volumes.volume_type_id=volume_types.id
       where status in ('in-use', 'available') order by volumes.display_name, status
     ")

@@ -38,10 +38,10 @@ novadb.regions.each do |region, creds|
 
       # Get the extra data from the user on a project
       email = ""
-      if not row[:project_id]
+      if not row[:user_id]
         email = "Email not available"
       else
-        extra_field = openstack.email_from_extra_field(row[:project_id])
+        extra_field = openstack.email_from_extra_field(row[:user_id])
         if extra_field.count == 1
           email = extra_field.first[:extra][11..-3]
         else
