@@ -53,7 +53,8 @@ begin
 
       logger.info("Monitoring #{queue_info[:queue]} #{queue_info[:routing_key]} on #{region}")
       ch.queue(queue_info[:queue]).bind(ex, :routing_key => queue_info[:routing_key]).subscribe do |headers, payload|
-        p = JSON.parse(payload)
+        # This is parsing twice just to strip oslo.message - that does not feel effecient...
+        p = JSON.parse(JSON.parse(payload)['oslo.message'])
         if p.has_key?('event_type')
           event = p['event_type']
           logger.info(event)
