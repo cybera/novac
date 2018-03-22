@@ -67,8 +67,7 @@ class Mitaka
     @novadb.get_database('nova', region).fetch("
       select security_groups.name as name, from_port, to_port, cidr, protocol
       from security_group_rules inner join security_groups on security_groups.id=security_group_rules.parent_group_id
-        inner join keystone.project on security_groups.project_id=keystone.project.id
-      where security_group_rules.deleted = 0 AND keystone.project.id = '#{project_id}'
+      where security_group_rules.deleted = 0 AND security_groups.project_id = '#{project_id}'
     ")
   end
 
