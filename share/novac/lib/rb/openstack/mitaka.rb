@@ -1,5 +1,6 @@
 require 'novadb2'
 require 'sequel'
+require 'netaddr'
 
 class Mitaka
 
@@ -63,11 +64,62 @@ class Mitaka
     ")
   end
 
+  def floating_ips_by_project_neutron(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select floating_ip_address from floatingips
+      where tenant_id = '#{project_id}'
+      order by floating_ip_address
+    ")
+  end
+
+  def networks_by_project(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select id, name from networks
+      where tenant_id = '#{project_id}'
+    ")
+  end
+
+  def subnets_by_project(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select id, name from subnets
+      where tenant_id = '#{project_id}'
+    ")
+  end
+
+  def ports_by_project(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select id, name from ports
+      where tenant_id = '#{project_id}'
+    ")
+  end
+
+  def routers_by_project(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select id, name from routers
+      where tenant_id = '#{project_id}'
+    ")
+  end
+
+  def rules_by_project(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select id, name from securitygrouprules
+      where tenant_id = '#{project_id}'
+    ")
+  end
+
   def secgroups_by_project(project_id, region = nil)
     @novadb.get_database('nova', region).fetch("
       select security_groups.name as name, from_port, to_port, cidr, protocol
       from security_group_rules inner join security_groups on security_groups.id=security_group_rules.parent_group_id
       where security_group_rules.deleted = 0 AND security_groups.project_id = '#{project_id}'
+    ")
+  end
+
+  def secgroups_by_project_neutron(project_id, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select securitygroups.name as name, port_range_min as from_port, port_range_max as to_port, remote_ip_prefix as cidr, protocol
+      from securitygrouprules join securitygroups on security_group_id=securitygroups.id
+      where securitygroups.tenant_id = '#{project_id}' and remote_ip_prefix is not null
     ")
   end
 
@@ -79,6 +131,14 @@ class Mitaka
     ")
   end
 
+  def open_secgroups_neutron(region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select securitygroups.tenant_id as project_id, securitygroups.name as security_group, port_range_min as from_port, port_range_max as to_port, remote_ip_prefix as cidr, protocol
+      from securitygrouprules join securitygroups on securitygroups.id=security_group_id
+      where protocol != 'icmp' and remote_ip_prefix = '0.0.0.0/0'
+    ")
+  end
+
   def secgroup_rules_for_instance(instance_uuid, region = nil)
     @novadb.get_database('nova', region).fetch("
       select security_groups.name, security_groups.description, from_port, to_port, cidr, protocol
@@ -86,6 +146,18 @@ class Mitaka
       join security_groups on security_groups.id=security_group_rules.parent_group_id
       join security_group_instance_association on security_group_id = security_groups.id
       where security_group_rules.deleted = 0 AND protocol != 'icmp' AND cidr = '0.0.0.0/0' and instance_uuid = '#{instance_uuid}'
+    ")
+  end
+
+  def secgroup_rules_for_instance_neutron(instance_uuid, region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select securitygroups.name, standardattributes.description, port_range_min as from_port, port_range_max as to_port, remote_ip_prefix as cidr, protocol
+      from securitygrouprules
+      join securitygroups on securitygroups.id=security_group_id
+      join standardattributes on standardattributes.id = securitygroups.standard_attr_id
+      join securitygroupportbindings on securitygroupportbindings.security_group_id = securitygroups.id
+      join ports on ports.id = securitygroupportbindings.port_id
+      where protocol != 'icmp' and remote_ip_prefix = '0.0.0.0/0' and ports.device_id='#{instance_uuid}'
     ")
   end
 
@@ -114,6 +186,17 @@ class Mitaka
     ")
   end
 
+  def available_ip_count_neutron(region = nil)
+    @novadb.get_database('neutron', region).fetch("
+      select subnets.id, ipallocationpools.first_ip, ipallocationpools.last_ip
+			from subnets
+			join networks on subnets.network_id=networks.id
+			join ipallocationpools on ipallocationpools.subnet_id=subnets.id
+			where networks.name='public'
+    ")
+		#Need to do math
+  end
+
   def used_ips(region = nil)
     @novadb.get_database('nova', region).fetch("
       select floating_ips.address, floating_ips.project_id, instances.display_name
@@ -123,6 +206,16 @@ class Mitaka
     ")
   end
 
+  def used_ips_neutron(region = nil)
+		@novadb.get_database('neutron', region).fetch("
+			select floatingips.floating_ip_address as address, floatingips.tenant_id as project_id, instances.display_name
+			from floatingips
+			join ports on ports.id = floatingips.floating_ip_port_id
+      join nova.instances on nova.instances.uuid = ports.device_id
+    ")
+  end
+
+  # This can't be ported to Neutron. available_ip_count_neutron could be used but extra math is needed
   def free_ips(region = nil)
     @novadb.get_database('nova', region).fetch("
       select address from floating_ips where `project_id` is null and deleted = 0
@@ -132,6 +225,13 @@ class Mitaka
   def idle_ips(region = nil)
     @novadb.get_database('nova', region).fetch("
       select address, project_id from floating_ips where project_id is not null and fixed_ip_id is null
+    ")
+  end
+
+  def idle_ips_neutron(region = nul)
+    @novadb.get_database('neutron', region).fetch("
+      select floating_ip_address, tenant_id from floatingips
+      where fixed_port_id is null
     ")
   end
 
@@ -283,6 +383,131 @@ class Mitaka
     end
   end
 
+  # Neutron
+  def neutron_project_quota(project_id, region=nil)
+    @novadb.get_database('neutron', region).fetch("
+			select resource, hard_limit
+      from quotas
+			where tenant_id='#{project_id}'
+    ")
+  end
+
+  def neutron_quota_usages(project_id, region=nil)
+		@novadb.get_database('neutron', region).fetch("
+			select resource, in_use
+			from quotausages
+			where tenant_id = '#{project_id}'
+    ")
+  end
+
+  def neutron_floating_ip_count(project_id, region=nil)
+		c = self.floating_ips_by_project(project_id, region).count
+		return [{:floating_ips => c}]
+  end
+
+  def neutron_security_group_count(project_id, region=nil)
+		c = self.secgroups_by_project(project_id, region).count
+		return [{:security_groups => c}]
+  end
+
+  def neutron_network_count(project_id, region=nil)
+		c = self.networks_by_project(project_id, region).count
+		return [{:networks => c}]
+  end
+
+  def neutron_subnet_count(project_id, region=nil)
+		c = self.subnets_by_project(project_id, region).count
+		return [{:subnets => c}]
+  end
+
+  def neutron_port_count(project_id, region=nil)
+		c = self.ports_by_project(project_id, region).count
+		return [{:ports => c}]
+  end
+
+  def neutron_rules_count(project_id, region=nil)
+		c = self.rules_by_project(project_id, region).count
+		return [{:rules => c}]
+  end
+
+  def neutron_router_count(project_id, region=nil)
+		c = self.routers_by_project(project_id, region).count
+		return [{:routers => c}]
+  end
+
+  def neutron_set_project_quota(project_id, region=nil)
+		db = @novadb.get_database('neutron', region)
+
+    # Check to see if the current value is the same.
+    # This should save on resources
+    count = db.fetch("
+              select count(*) as c
+              from quotas
+              where project_id = '#{project_id}' and resource = '#{resource}' and limit = '#{limit}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{limit} #{region}"
+      return true
+    end
+
+    count = db.fetch("
+              select count(*) as c
+              from quotas
+              where project_id = '#{project_id}' and resource = '#{resource}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "Updating #{project_id} #{resource} to #{limit}"
+      ds = db['update quotas set limit = ? where resource = ? and tenant_id = ?',
+              limit, resource, project_id
+           ]
+      ds.update
+    elsif count == 0
+      ds = db['insert into quotas (tenant_id, resource, limit)
+               values (?, ?, ?)',
+               project_id, resource, limit
+           ]
+      ds.insert
+    else
+      throw "Unable to update default #{resource} to #{limit}. #{project_id} has #{count} entries for #{resource}"
+    end
+  end
+
+  def neutron_set_project_used(project_id, resource, in_use, user_id = nil, region = nil)
+    db = @novadb.get_database('neutron', region)
+
+		# Neutron quotas are user agnostic
+
+    # Check to see if the current value is the same.
+    # This should save on resources
+    count = db.fetch("
+              select count(*) as c
+              from quotausages
+              where project_id = '#{project_id}' and resource = '#{resource}' and in_use = '#{in_use}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "No change for #{project_id} #{resource} #{in_use} #{region}"
+      return true
+    end
+
+    count = db.fetch("
+              select count(*) as c
+              from quotausages
+              where project_id = '#{project_id}' and resource = '#{resource}'
+            ").first[:c].to_i
+    if count == 1
+      #puts "#{project_id} #{resource} #{in_use} #{user_id_update} #{region} #{count} update"
+      ds = db["update quotausages set in_use = '#{in_use}' where resource = '#{resource}' and project_id = '#{project_id}'"]
+      ds.update
+    elsif count == 0
+      #puts "#{project_id} #{resource} #{in_use} #{user_id_insert} #{region} #{count} insert"
+      ds = db["insert into quotausages ( tenant_id, resource, in_use, reserved)
+               values ('#{project_id}', '#{resource}', '#{in_use}', 0)"
+           ]
+      ds.insert
+    else
+      throw "Unable to update #{resource} to #{in_use}. Project #{project_id}, user #{user_id} has #{count} entries for #{resource}"
+    end
+  end
 
   # Keystone
   def projects(region = nil)

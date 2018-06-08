@@ -21,12 +21,19 @@ class Quotas
       'volumes'                     => 10,
       'gigabytes'                   => 1000,
       'floating_ips'                => 10,
+      #'floatingip'                => 4,
+      #'network'                   => 10,
       'metadata_items'              => 128,
       'injected_files'              => 5,
       'injected_file_content_bytes' => 10 * 1024,
       'injected_file_path_bytes'    => 255,
       'security_groups'             => 10,
       'security_group_rules'        => 20,
+      #'security_group'             => 10,
+      #'security_group_rule'        => 100,
+      #'port'                       => 50,
+      #'router'                     => 10,
+      #'subnet'                     => 10,
       'key_pairs'                   => 100,
       'reservation_expire'          => 86400,
       'images'                      => 5,
@@ -40,10 +47,13 @@ class Quotas
   def project_quota_with_defaults(project_id)
     quota = @defaults.clone
 
-    # Nova and Cinder Quotas
+    # Nova, Neutron, and Cinder Quotas
     @openstack.nova_project_quota(project_id).each do |row|
       quota[row[:resource]] = row[:hard_limit]
     end
+    #@openstack.neutron_project_auota(project_id).each do |row|
+    #  quota[row[:resource]] = row[:hard_limit]
+    #end
     @openstack.cinder_project_quota(project_id).each do |row|
       quota[row[:resource]] = row[:hard_limit]
     end
@@ -60,6 +70,7 @@ class Quotas
   def project_quota(project_id)
     quota = {}
     ['nova_project_quota', 'cinder_project_quota'].each do |query|
+    #['nova_project_quota', 'neutron_project_quota', 'cinder_project_quota'].each do |query|
       m = @openstack.method(query)
       m.call(project_id).each do |row|
         quota[row[:resource]] = row[:hard_limit]
@@ -78,6 +89,10 @@ class Quotas
     @openstack.nova_quota_usages(project_id).each do |row|
       resources[row[:resource]] = row[:in_use]
     end
+    # Neutron / Network
+    #@openstack.neutron_quota_usages(project_id).each do |row|
+    #  resources[row[:resource]] = row[:in_use]
+    #end
     # Cinder / Block Storage
     @openstack.cinder_quota_usages(project_id).each do |row|
       resources[row[:resource]] = row[:in_use]
@@ -117,6 +132,8 @@ class Quotas
 
     queries = [
       'nova_floating_ip_count',
+      #'neutron_floating_ip_count',
+      #'neutron_network_count',
       'cinder_volume_count',
       'cinder_volume_usage',
       'glance_image_count',
@@ -243,6 +260,8 @@ class Quotas
   def set_project_quota(project_id, region, resource, limit)
     if resource == 'volumes' or resource == 'gigabytes' or resource == 'snapshots'
       @openstack.cinder_set_project_quota(project_id, resource, limit, region)
+		#elif resource == :floatingip or resource == :network or resource == :security_group or resource == :security_group_rule
+      #@openstack.neutron_set_project_used(project_id, resource, in_use, region)
     else
       @openstack.nova_set_project_quota(project_id, resource, limit, region)
     end
@@ -336,6 +355,8 @@ class Quotas
   def set_project_used_resource(project_id, region, resource, in_use, user_id = nil)
     if resource == :volumes or resource == :gigabytes or resource == :snapshots
       @openstack.cinder_set_project_used(project_id, resource, in_use, region)
+    #elif resource == :floatingip or resource == :network or resource == :security_group or resource == :security_group_rule
+      #@openstack.neutron_set_project_used(project_id, resource, in_use, region)
     else
       @openstack.nova_set_project_used(project_id, resource, in_use, user_id, region)
     end
