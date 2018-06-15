@@ -64,7 +64,7 @@ begin
 
               # Alert if a public image was uploaded or updated (made public)
               if event == 'image.update'
-                if p['payload']['is_public'] == true
+                if p['payload']['is_public'] == true and p['payload']['status'] == 'active'
                   logger.info("Public image #{p['payload']['name']} (#{p['payload']['id']}) uploaded or updated")
                   %x{ echo "public image #{p['payload']['name']} (#{p['payload']['id']}) uploaded or updated" | /usr/bin/mail -s "public image" root }
                 end
